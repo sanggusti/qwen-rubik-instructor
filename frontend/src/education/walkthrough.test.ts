@@ -1,0 +1,147 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { WalkthroughEngine, type WalkthroughApi, type WalkthroughState, type Walkthrough } from './walkthrough';
+import type { CubeletType } from '../scene/cube/cubelets';
+
+// A fake cube API that records move/reset calls and lets a test toggle busyness
+// to stand in for the animator queue.
+function fakeApi() {
+  const applied: string[][] = [];
+  let resets = 0;
+  let busy = false;
+  const api: WalkthroughApi = {
+    applyMoves(moves) {
+      const arr = typeof moves === 'string' ? moves.split(/\s+/).filter(Boolean) : moves;
+      applied.push(arr);
+      return { accepted: arr, rejected: [] };
+    },
+    reset() { resets++; },
+    isBusy: () => busy
+  };
+  return { api, applied, resets: () => resets, setBusy: (b: boolean) => { busy = b; } };
+}
+
+function fakeHighlight() {
+  const calls: (CubeletType | null)[] = [];
+  return { calls, fn: (t: CubeletType | null) => calls.push(t) };
+}
+
+const WTS: Walkthrough[] = [
+  {
+    id: 'w1',
+    title: 'W1',
+    description: 'demo',
+    beats: [
+      { text: 'b0' },
+      { text: 'b1', moves: ['R', 'U'], highlight: 'edge' },
+      { text: 'b2', moves: ["R'"], highlight: null }
+    ]
+  }
+];
+
+function latest(engine: WalkthroughEngine): WalkthroughState {
+  let state!: WalkthroughState;
+  const off = engine.subscribe((s) => { state = s; });
+  off();
+  return state;
+}
+
+// Narrow to the populated variant for direct property assertions.
+function active(engine: WalkthroughEngine): Extract<WalkthroughState, { walkthrough: Walkthrough }> {
+  const s = latest(engine);
+  if (s.walkthrough === null) throw new Error('expected an active walkthrough');
+  return s;
+}
+
+const last = <T>(arr: T[]): T => arr[arr.length - 1];
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('WalkthroughEngine', () => {
+  it('starts idle with no walkthrough', () => {
+    const { api } = fakeApi();
+    const hl = fakeHighlight();
+    const engine = new WalkthroughEngine(api, WTS, hl.fn);
+    expect(latest(engine)).toEqual({ walkthrough: null });
+  });
+
+  it('select resets the cube and shows beat 0 paused', () => {
+    const { api, applied, resets } = fakeApi();
+    const hl = fakeHighlight();
+    const engine = new WalkthroughEngine(api, WTS, hl.fn);
+    engine.select('w1');
+    const s = latest(engine);
+    expect(s.walkthrough?.id).toBe('w1');
+    expect(s).toMatchObject({ beatIndex: 0, beatCount: 3, playing: false, finished: false });
+    expect(resets()).toBe(1);
+    expect(applied).toEqual([]); // beat 0 has no moves
+    expect(last(hl.calls)).toBeNull();
+  });
+
+  it('next steps forward and applies that beat\'s moves incrementally', () => {
+    const { api, applied } = fakeApi();
+    const hl = fakeHighlight();
+    const engine = new WalkthroughEngine(api, WTS, hl.fn);
+    engine.select('w1');
+    engine.next();
+    expect(latest(engine)).toMatchObject({ beatIndex: 1, playing: false });
+    expect(applied).toEqual([['R', 'U']]);
+    expect(last(hl.calls)).toBe('edge');
+    engine.next();
+    expect(applied).toEqual([['R', 'U'], ["R'"]]);
+    expect(latest(engine)).toMatchObject({ beatIndex: 2 });
+  });
+
+  it('previous rebuilds via reset + cumulative replay', () => {
+    const { api, applied, resets } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    engine.select('w1');   // reset #1
+    engine.next();         // -> beat 1, applies [R,U]
+    engine.next();         // -> beat 2, applies [R']
+    const resetsBefore = resets();
+    engine.previous();     // -> beat 1, reset + replay cumulative [R,U]
+    expect(resets()).toBe(resetsBefore + 1);
+    expect(last(applied)).toEqual(['R', 'U']);
+    expect(latest(engine)).toMatchObject({ beatIndex: 1 });
+  });
+
+  it('stop returns to beat 0 and clears highlight', () => {
+    const { api } = fakeApi();
+    const hl = fakeHighlight();
+    const engine = new WalkthroughEngine(api, WTS, hl.fn);
+    engine.select('w1');
+    engine.next();
+    engine.stop();
+    expect(latest(engine)).toMatchObject({ beatIndex: 0, playing: false, finished: false });
+    expect(last(hl.calls)).toBeNull();
+  });
+
+  it('play auto-advances through every beat then finishes', () => {
+    vi.useFakeTimers();
+    const { api, applied } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    engine.select('w1');
+    engine.play();
+    expect(active(engine).playing).toBe(true);
+    vi.advanceTimersByTime(10000);
+    const s = latest(engine);
+    expect(s).toMatchObject({ playing: false, finished: true, beatIndex: 2 });
+    // Each beat's moves applied exactly once, in order.
+    expect(applied).toEqual([['R', 'U'], ["R'"]]);
+  });
+
+  it('pause stops auto-advance and keeps the current beat', () => {
+    vi.useFakeTimers();
+    const { api } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    engine.select('w1');
+    engine.play();
+    vi.advanceTimersByTime(1300); // enough for one auto-step into beat 1
+    engine.pause();
+    const idx = active(engine).beatIndex;
+    expect(active(engine).playing).toBe(false);
+    vi.advanceTimersByTime(10000);
+    expect(active(engine).beatIndex).toBe(idx); // did not advance after pause
+  });
+});

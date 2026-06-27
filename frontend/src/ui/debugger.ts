@@ -6,8 +6,7 @@ const FACE_ORDER: FaceKey[] = ['U', 'L', 'F', 'R', 'B', 'D'];
 const HISTORY_LIMIT = 20;
 
 export class DebuggerPanel {
-  private el: HTMLDivElement;
-  private toggleEl: HTMLButtonElement;
+  readonly el: HTMLDivElement;
   private historyEl!: HTMLDivElement;
   private statusEl!: HTMLSpanElement;
   private faceEls = new Map<FaceKey, HTMLDivElement[]>(); // 9 stickers per face
@@ -23,14 +22,6 @@ export class DebuggerPanel {
     const title = document.createElement('h3');
     title.textContent = "Rubik's Debugger";
     head.appendChild(title);
-
-    const close = document.createElement('button');
-    close.className = 'dbg-close';
-    close.type = 'button';
-    close.setAttribute('aria-label', 'Close debugger');
-    close.textContent = '\u00d7';
-    close.addEventListener('click', () => this.hide());
-    head.appendChild(close);
     this.el.appendChild(head);
 
     const status = document.createElement('div');
@@ -68,25 +59,6 @@ export class DebuggerPanel {
     this.historyEl = document.createElement('div');
     this.historyEl.className = 'history';
     this.el.appendChild(this.historyEl);
-
-    // Floating reopen toggle (hidden while the panel is open).
-    this.toggleEl = document.createElement('button');
-    this.toggleEl.id = 'dbg-toggle';
-    this.toggleEl.type = 'button';
-    this.toggleEl.setAttribute('aria-label', 'Open debugger');
-    this.toggleEl.innerHTML = `<span class="dot"></span><span>Debugger</span>`;
-    this.toggleEl.addEventListener('click', () => this.show());
-    parent.appendChild(this.toggleEl);
-  }
-
-  hide(): void {
-    this.el.classList.add('is-hidden');
-    this.toggleEl.classList.add('is-visible');
-  }
-
-  show(): void {
-    this.el.classList.remove('is-hidden');
-    this.toggleEl.classList.remove('is-visible');
   }
 
   pushMove(move: string): void {

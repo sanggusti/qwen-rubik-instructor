@@ -1,0 +1,12 @@
+{
+  "name": "qwen-rubik-instructor",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "postinstall": "npm --prefix frontend install",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
+    "test": "npm --prefix frontend run test"
+  }
+}

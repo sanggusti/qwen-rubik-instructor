@@ -1,0 +1,72 @@
+// Deterministic evaluation of a user's attempt against a drill. Reuses the
+// existing tail-match validator and solved-state check so practice and lessons
+// agree on what "done" means. Returns a status plus a human-readable message.
+
+import type { State } from '../core/state';
+import { isSolved } from '../core/state';
+import { endsWithMoves } from './lesson_validator';
+import type { Drill, EvaluationResult } from './practice_types';
+
+export function evaluate(drill: Drill, moveHistory: string[], state: State): EvaluationResult {
+    switch (drill.validator.type) {
+        case 'moveSequence':
+            return evaluateSequence(drill.validator.moves, moveHistory);
+        case 'cubeSolved':
+            return evaluateSolved(state);
+    }
+}
+
+function evaluateSequence(expected: string[], moveHistory: string[]): EvaluationResult {
+    if (moveHistory.length === 0) {
+        return { status: 'idle', message: `Start with ${expected[0]}.` };
+    }
+
+    // The drill completes when the history ENDS with the expected moves, so a
+    // mistake clears as soon as the user restarts the sequence correctly.
+    if (endsWithMoves(moveHistory, expected)) {
+        return { status: 'correct', message: 'Correct sequence.' };
+    }
+
+    const onTrack = trailingPrefixLength(moveHistory, expected);
+    if (onTrack > 0) {
+        return { status: 'progress', message: `Good. Next move: ${expected[onTrack]}.` };
+    }
+
+    // Off track: describe the first divergence from the start of the attempt.
+    let matched = 0;
+    while (
+        matched < moveHistory.length &&
+        matched < expected.length &&
+        moveHistory[matched] === expected[matched]
+    ) {
+        matched++;
+    }
+    const expectedMove = expected[matched] ?? expected[expected.length - 1];
+    const gotMove = moveHistory[matched] ?? moveHistory[moveHistory.length - 1];
+    return {
+        status: 'wrong',
+        message: `Expected ${expectedMove}, but got ${gotMove}. Start the sequence again.`
+    };
+}
+
+function evaluateSolved(state: State): EvaluationResult {
+    return isSolved(state)
+        ? { status: 'correct', message: 'Cube solved.' }
+        : { status: 'progress', message: 'Keep going until the cube is solved.' };
+}
+
+// Length of the longest suffix of `history` that is a prefix of `expected`.
+function trailingPrefixLength(history: string[], expected: string[]): number {
+    const max = Math.min(history.length, expected.length);
+    for (let p = max; p > 0; p--) {
+        let ok = true;
+        for (let i = 0; i < p; i++) {
+            if (history[history.length - p + i] !== expected[i]) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) return p;
+    }
+    return 0;
+}

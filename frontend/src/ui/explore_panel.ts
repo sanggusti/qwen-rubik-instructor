@@ -26,18 +26,26 @@ export class ExplorePanel {
   private readonly engine: WalkthroughEngine;
   private readonly onPlay?: () => void;
   private readonly onSelectWalkthrough?: () => void;
+  private readonly onGenerate?: (report: (done: number, total: number) => void) => Promise<void>;
   private readonly unsubscribe: () => void;
+  private generateBtn?: HTMLButtonElement;
+  private generateStatus?: HTMLParagraphElement;
 
   constructor(
     parent: HTMLElement,
     cubeView: CubeView,
     engine: WalkthroughEngine,
-    opts: { onPlay?: () => void; onSelectWalkthrough?: () => void } = {}
+    opts: {
+      onPlay?: () => void;
+      onSelectWalkthrough?: () => void;
+      onGenerate?: (report: (done: number, total: number) => void) => Promise<void>;
+    } = {}
   ) {
     this.cubeView = cubeView;
     this.engine = engine;
     this.onPlay = opts.onPlay;
     this.onSelectWalkthrough = opts.onSelectWalkthrough;
+    this.onGenerate = opts.onGenerate;
 
     this.el = document.createElement('div');
     this.el.id = 'explore';
@@ -110,6 +118,23 @@ export class ExplorePanel {
 
   private buildWalkthroughSection(): void {
     this.el.appendChild(this.sectionTitle('Watch & learn'));
+
+    if (this.onGenerate) {
+      const row = document.createElement('div');
+      row.className = 'exp-row';
+      this.generateBtn = document.createElement('button');
+      this.generateBtn.type = 'button';
+      this.generateBtn.className = 'exp-btn';
+      this.generateBtn.textContent = 'Solve my cube (Qwen)';
+      this.generateBtn.addEventListener('click', () => this.runGenerate());
+      row.appendChild(this.generateBtn);
+      this.el.appendChild(row);
+
+      this.generateStatus = document.createElement('p');
+      this.generateStatus.className = 'exp-hint';
+      this.el.appendChild(this.generateStatus);
+    }
+
     this.listEl = document.createElement('div');
     this.listEl.className = 'exp-list';
     for (const w of this.engine.getWalkthroughs()) {
@@ -176,7 +201,10 @@ export class ExplorePanel {
     if (state.beat.moves?.length) {
       const moves = document.createElement('div');
       moves.className = 'exp-moves';
-      moves.textContent = `Moves: ${state.beat.moves.join(' ')}`;
+      // Long generated sequences would overflow the panel; summarize them.
+      moves.textContent = state.beat.moves.length > 24
+        ? `Moves: ${state.beat.moves.length} turns`
+        : `Moves: ${state.beat.moves.join(' ')}`;
       this.playerEl.appendChild(moves);
     }
 
@@ -199,6 +227,28 @@ export class ExplorePanel {
     );
     actions.appendChild(this.button('Stop', () => this.engine.stop()));
     this.playerEl.appendChild(actions);
+  }
+
+  private async runGenerate(): Promise<void> {
+    if (!this.onGenerate || !this.generateBtn) return;
+    this.generateBtn.disabled = true;
+    this.generateBtn.textContent = 'Generating…';
+    if (this.generateStatus) this.generateStatus.textContent = 'Asking Qwen to plan your solve…';
+    try {
+      await this.onGenerate((done, total) => {
+        if (this.generateStatus) {
+          this.generateStatus.textContent = `Generating narration… beat ${done} of ${total}`;
+        }
+      });
+      if (this.generateStatus) this.generateStatus.textContent = 'Ready — press Play to watch.';
+    } catch (err) {
+      if (this.generateStatus) {
+        this.generateStatus.textContent = `Couldn't generate: ${(err as Error).message}`;
+      }
+    } finally {
+      this.generateBtn.disabled = false;
+      this.generateBtn.textContent = 'Solve my cube (Qwen)';
+    }
   }
 
   private sectionTitle(text: string): HTMLElement {

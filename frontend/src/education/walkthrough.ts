@@ -95,6 +95,15 @@ export class WalkthroughEngine {
     return off;
   }
 
+  // Add a runtime-generated walkthrough (replacing any prior one with the same
+  // id) and start it. Lets backend-generated content reuse this same player.
+  loadGenerated(walkthrough: Walkthrough): void {
+    const existing = this.walkthroughs.findIndex((w) => w.id === walkthrough.id);
+    if (existing >= 0) this.walkthroughs.splice(existing, 1);
+    this.walkthroughs.push(walkthrough);
+    this.select(walkthrough.id);
+  }
+
   select(id: string): void {
     const found = this.walkthroughs.find((w) => w.id === id);
     if (!found) return;

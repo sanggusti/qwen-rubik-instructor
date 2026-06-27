@@ -145,3 +145,29 @@ describe('WalkthroughEngine', () => {
     expect(active(engine).beatIndex).toBe(idx); // did not advance after pause
   });
 });
+
+describe('WalkthroughEngine.loadGenerated', () => {
+  it('adds a runtime walkthrough and selects it', () => {
+    const { api } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    const gen: Walkthrough = {
+      id: 'gen-1', title: 'Generated', description: 'd',
+      beats: [{ text: 'g0' }, { text: 'g1', moves: ['U'] }]
+    };
+    engine.loadGenerated(gen);
+    const s = active(engine);
+    expect(s.walkthrough.id).toBe('gen-1');
+    expect(s.beatIndex).toBe(0);
+    expect(engine.getWalkthroughs().some((w) => w.id === 'gen-1')).toBe(true);
+  });
+
+  it('replaces a prior generated walkthrough with the same id', () => {
+    const { api } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    engine.loadGenerated({ id: 'gen-1', title: 'A', description: 'd', beats: [{ text: 'a' }] });
+    engine.loadGenerated({ id: 'gen-1', title: 'B', description: 'd', beats: [{ text: 'b' }] });
+    const matches = engine.getWalkthroughs().filter((w) => w.id === 'gen-1');
+    expect(matches).toHaveLength(1);
+    expect(matches[0].title).toBe('B');
+  });
+});

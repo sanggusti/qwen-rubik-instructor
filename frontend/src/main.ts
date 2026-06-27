@@ -15,6 +15,7 @@ import { CubeView } from './scene/cube/cube_view';
 import { ExplorePanel } from './ui/explore_panel';
 import { WalkthroughEngine } from './education/walkthrough';
 import { WALKTHROUGHS } from './education/walkthroughs';
+import { generateWalkthrough, generateLesson } from './education/remote_content';
 import { Hud } from './ui/hud';
 import { StageCaption } from './ui/stage_caption';
 import { applyMove, solvedState, isSolved, cloneState, type State } from './core/state';
@@ -224,17 +225,33 @@ function boot(container: HTMLElement): void {
       if (keep !== 'walkthrough') walkthroughEngine?.close();
     };
 
-    const lessonsPanel = new LessonsPanel(container, lessonEngine, () => {
-      closeOthers('lesson');
-      hud.close();
-    });
+    const lessonsPanel = new LessonsPanel(
+      container,
+      lessonEngine,
+      () => {
+        closeOthers('lesson');
+        hud.close();
+      },
+      async (report) => {
+        closeOthers('lesson');
+        const lesson = await generateLesson({ state: api.getState(), onProgress: report });
+        lessonEngine?.loadGenerated(lesson);
+        hud.close();
+      }
+    );
     const practicePanel = new PracticePanel(container, practiceEngine, () => {
       closeOthers('practice');
       hud.close();
     });
     const explorePanel = new ExplorePanel(container, cubeView, walkthroughEngine, {
       onPlay: () => hud.close(),
-      onSelectWalkthrough: () => closeOthers('walkthrough')
+      onSelectWalkthrough: () => closeOthers('walkthrough'),
+      onGenerate: async (report) => {
+        closeOthers('walkthrough');
+        const wt = await generateWalkthrough({ state: api.getState(), onProgress: report });
+        walkthroughEngine?.loadGenerated(wt);
+        hud.close();
+      }
     });
 
     const helpEl = buildHelp();

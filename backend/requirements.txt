@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+openai
+rubik_cube
+pydantic
+pydantic-settings
+pytest
+httpx

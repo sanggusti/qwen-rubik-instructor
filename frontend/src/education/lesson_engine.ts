@@ -73,6 +73,15 @@ export class LessonEngine {
         return off;
     }
 
+    // Add a runtime-generated lesson (replacing any prior one with the same id)
+    // and start it. Lets backend-generated content reuse this same engine.
+    loadGenerated(lesson: Lesson): void {
+        const existing = this.lessons.findIndex((l) => l.id === lesson.id);
+        if (existing >= 0) this.lessons.splice(existing, 1);
+        this.lessons.push(lesson);
+        this.selectLesson(lesson.id);
+    }
+
     selectLesson(lessonId: string): void {
         const lesson = this.lessons.find((l) => l.id === lessonId);
         if (!lesson) return;

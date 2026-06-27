@@ -271,18 +271,7 @@ html, body {
 /* Persistent, faint keyboard hint. Bottom-left so it clears the centred menu
    bar; non-interactive so it never blocks the cube. */
 #app #help {
-  position: absolute;
-  bottom: 14px;
-  left: 16px;
   color: var(--text-dim);
-  padding: 9px 12px;
-  border-radius: 12px;
-  font-size: 10.5px;
-  line-height: 1.55;
-  z-index: 8;
-  max-width: min(42vw, 380px);
-  opacity: 0.42;
-  pointer-events: none;
 }
 #help b { color: var(--accent-soft); font-weight: 600; }
 
@@ -754,8 +743,7 @@ html, body {
   border-top: 1px solid var(--panel-border);
   padding-top: 10px;
 }
-#explore .exp-hint,
-#explore .exp-desc { color: var(--text-dim); margin: 4px 0 8px; }
+#explore .exp-hint { color: var(--text-dim); margin: 4px 0 8px; }
 #explore .exp-counter {
   font-size: 11px;
   letter-spacing: .06em;
@@ -763,7 +751,6 @@ html, body {
   color: var(--accent-soft);
   margin-bottom: 6px;
 }
-#explore .exp-narration { margin: 0 0 8px; }
 #explore .exp-moves {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
@@ -856,11 +843,11 @@ html, body {
 
 #app .hud-panel {
   position: absolute !important;
-  left: 50% !important;
+  left: 16px !important;
   right: auto !important;
   top: auto !important;
   bottom: 64px !important;
-  transform: translateX(-50%) !important;
+  transform: none !important;
   width: min(330px, calc(100vw - 24px)) !important;
   max-width: none !important;
   min-width: 0 !important;
@@ -886,6 +873,11 @@ html, body {
    ============================================================ */
 .threejs-canvas { transition: transform 0.35s ease; }
 #app.is-experience .threejs-canvas { transform: translateX(-11%); }
+/* An open panel sits bottom-left, so nudge the cube right to keep it clear. When
+   both a panel and a caption are open they bracket the cube on opposite sides,
+   so it recentres (the two-class rule outranks each single-class rule). */
+#app.has-panel .threejs-canvas { transform: translateX(11%); }
+#app.has-panel.is-experience .threejs-canvas { transform: none; }
 
 #app #stage {
   position: absolute;
@@ -944,6 +936,7 @@ html, body {
    centred and float the caption as a bottom sheet above the menu bar. */
 @media (max-width: 760px) {
   #app.is-experience .threejs-canvas { transform: none; }
+  #app.has-panel .threejs-canvas { transform: none; }
   #app #stage {
     top: auto;
     bottom: 64px;
@@ -953,5 +946,9 @@ html, body {
     width: min(92vw, 440px);
     max-height: 30vh;
   }
-  #app #help { display: none; }
+  #app .hud-panel {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: min(92vw, 440px) !important;
+  }
 }

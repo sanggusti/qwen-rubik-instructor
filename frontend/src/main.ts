@@ -169,8 +169,15 @@ function boot(container: HTMLElement): void {
 
   if (!DEBUG_CONFIG.withoutUIMode) {
     // A single bottom-centre menu bar owns every panel as a mutually-exclusive
-    // dropdown, keeping the corners and the cube clear.
-    const hud = new Hud(container);
+    // dropdown, keeping the corners and the cube clear. Opening a tab ends any
+    // experience it doesn't own, so the side caption never goes stale.
+    const hud = new Hud(container, (id) => {
+      const keep = id === 'lessons' ? 'lesson'
+        : id === 'practice' ? 'practice'
+        : id === 'explore' ? 'walkthrough'
+        : 'none';
+      closeOthers(keep);
+    });
 
     const lessonApi: LessonApi = {
       applyMoves: api.applyMoves,
@@ -210,7 +217,8 @@ function boot(container: HTMLElement): void {
     });
 
     // Only one experience runs at a time, so the caption has a single owner.
-    const closeOthers = (keep: 'lesson' | 'practice' | 'walkthrough'): void => {
+    // `keep: 'none'` ends every experience (used by tabs that own none, e.g. State).
+    const closeOthers = (keep: 'lesson' | 'practice' | 'walkthrough' | 'none'): void => {
       if (keep !== 'lesson') lessonEngine?.closeLesson();
       if (keep !== 'practice') practiceEngine?.closeDrill();
       if (keep !== 'walkthrough') walkthroughEngine?.close();
@@ -236,6 +244,9 @@ function boot(container: HTMLElement): void {
     hud.register('practice', 'Practice', practicePanel.el);
     hud.register('explore', 'Explore', explorePanel.el);
     if (debuggerPanel) hud.register('debugger', 'State', debuggerPanel.el);
+    hud.register('help', 'Help', helpEl);
+    hud.action('Scramble', () => api.scramble());
+    hud.action('Reset', () => resetCube());
 
     // Feed the active experience's current text into the side caption.
     lessonEngine.subscribe((s) => {

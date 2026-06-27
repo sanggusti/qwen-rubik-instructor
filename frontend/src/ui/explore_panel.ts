@@ -164,22 +164,14 @@ export class ExplorePanel {
       return;
     }
 
-    const desc = document.createElement('p');
-    desc.className = 'exp-desc';
-    desc.textContent = state.walkthrough.description;
-    this.playerEl.appendChild(desc);
-
+    // The side caption owns the title + per-beat narration; the player keeps
+    // just the progress, moves, and transport controls to avoid duplication.
     const counter = document.createElement('div');
     counter.className = 'exp-counter';
     counter.textContent = state.finished
       ? `Finished · ${state.beatCount} beats`
       : `Beat ${state.beatIndex + 1} of ${state.beatCount}`;
     this.playerEl.appendChild(counter);
-
-    const narration = document.createElement('p');
-    narration.className = 'exp-narration';
-    narration.textContent = state.beat.text;
-    this.playerEl.appendChild(narration);
 
     if (state.beat.moves?.length) {
       const moves = document.createElement('div');

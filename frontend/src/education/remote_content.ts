@@ -6,6 +6,7 @@
 import type { State } from '../core/state';
 import type { Walkthrough, Beat } from './walkthrough';
 import type { Lesson, LessonStep } from './lesson_types';
+import type { Level, Method, HistoryEntry } from './profile';
 
 const BASE_URL =
   ((import.meta as { env?: Record<string, string | undefined> }).env?.VITE_BACKEND_URL) ??
@@ -14,8 +15,23 @@ const BASE_URL =
 export interface GenerateOptions {
   topic?: string;
   state?: State;
+  /** Learner persona — personalises method, narration, and pacing. */
+  level?: Level;
+  method?: Method;
+  /** Compact recent activity for session continuity. */
+  history?: HistoryEntry[];
   /** Called as each beat/step arrives, for progress UI. */
   onProgress?: (done: number, total: number) => void;
+}
+
+function requestBody(opts: GenerateOptions): Record<string, unknown> {
+  return {
+    topic: opts.topic,
+    state: opts.state,
+    level: opts.level,
+    method: opts.method,
+    history: opts.history
+  };
 }
 
 interface MetaEvent {
@@ -74,10 +90,7 @@ function requireMeta(event: Record<string, unknown>, kind: MetaEvent['kind']): M
 export async function generateWalkthrough(opts: GenerateOptions): Promise<Walkthrough> {
   const beats: Beat[] = [];
   let meta: MetaEvent | null = null;
-  for await (const event of streamEvents('/narrate/walkthrough', {
-    topic: opts.topic,
-    state: opts.state
-  })) {
+  for await (const event of streamEvents('/narrate/walkthrough', requestBody(opts))) {
     if (event.type === 'meta') {
       meta = requireMeta(event, 'walkthrough');
     } else if (event.type === 'beat') {
@@ -92,10 +105,7 @@ export async function generateWalkthrough(opts: GenerateOptions): Promise<Walkth
 export async function generateLesson(opts: GenerateOptions): Promise<Lesson> {
   const steps: LessonStep[] = [];
   let meta: MetaEvent | null = null;
-  for await (const event of streamEvents('/narrate/lesson', {
-    topic: opts.topic,
-    state: opts.state
-  })) {
+  for await (const event of streamEvents('/narrate/lesson', requestBody(opts))) {
     if (event.type === 'meta') {
       meta = requireMeta(event, 'lesson');
     } else if (event.type === 'step') {

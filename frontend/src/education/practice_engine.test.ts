@@ -167,3 +167,33 @@ describe('PracticeEngine', () => {
         expect(state.round).toBe(0);
     });
 });
+
+describe('PracticeEngine timing', () => {
+    it('times across rounds from the first move to final completion', () => {
+        let t = 1000;
+        const { api, user } = fakeApi();
+        const engine = new PracticeEngine(api, DRILLS, () => t);
+        engine.selectDrill('sexy'); // rounds: 2, no setup
+        user('R', 'U', "R'", "U'"); // round 1 — first move starts the clock at t=1000
+        t = 5000;
+        user('R', 'U', "R'", "U'"); // round 2 completes at t=5000
+        const s = latest(engine);
+        if (s.drill === null) throw new Error('expected a drill');
+        expect(s.completed).toBe(true);
+        expect(s.startedAt).toBe(1000);
+        expect(s.solveMs).toBe(4000);
+    });
+
+    it('resets the clock when the drill is reset', () => {
+        let t = 1000;
+        const { api, user } = fakeApi();
+        const engine = new PracticeEngine(api, DRILLS, () => t);
+        engine.selectDrill('sexy');
+        user('R'); // starts clock
+        engine.resetDrill();
+        const s = latest(engine);
+        if (s.drill === null) throw new Error('expected a drill');
+        expect(s.startedAt).toBeNull();
+        expect(s.solveMs).toBeNull();
+    });
+});

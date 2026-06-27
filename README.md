@@ -34,6 +34,8 @@ Requirements: **Node.js 18+** and npm.
 ```bash
 npm install        # also installs the frontend workspace
 npm run dev        # start the dev server
+
+cd backend && .venv/bin/uvicorn main:app --port 8000
 ```
 
 Open the Vite URL printed in the terminal (usually `http://localhost:5173`).

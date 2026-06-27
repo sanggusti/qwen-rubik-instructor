@@ -16,6 +16,7 @@ import { ExplorePanel } from './ui/explore_panel';
 import { WalkthroughEngine } from './education/walkthrough';
 import { WALKTHROUGHS } from './education/walkthroughs';
 import { generateWalkthrough, generateLesson } from './education/remote_content';
+import { loadProfile, setLevel, appendHistory, LEVELS, type Level } from './education/profile';
 import { Hud } from './ui/hud';
 import { StageCaption } from './ui/stage_caption';
 import { applyMove, solvedState, isSolved, cloneState, type State } from './core/state';
@@ -131,6 +132,7 @@ function boot(container: HTMLElement): void {
     const dt = Math.min(now - lastFrameTs, 64);
     lastFrameTs = now;
     animator.update(now);
+    cubeView.update(now);
     updateIdle(now, dt);
     ctx.controls?.update();
     ctx.renderer.render(ctx.scene, ctx.camera);
@@ -180,6 +182,10 @@ function boot(container: HTMLElement): void {
       closeOthers(keep);
     });
 
+    // Learner profile (level / method / session history), persisted client-side
+    // and sent with each generate request so the backend can personalise.
+    let profile = loadProfile();
+
     const lessonApi: LessonApi = {
       applyMoves: api.applyMoves,
       getState: api.getState,
@@ -206,7 +212,7 @@ function boot(container: HTMLElement): void {
         setMoveDuration: (ms) => { animator.durationMs = ms ?? defaultMoveMs; }
       },
       WALKTHROUGHS,
-      (type) => cubeView.highlight(type)
+      (type, opts) => cubeView.highlight(type, opts)
     );
 
     // The caption shows the active experience's text beside the cube; its close
@@ -234,8 +240,18 @@ function boot(container: HTMLElement): void {
       },
       async (report) => {
         closeOthers('lesson');
-        const lesson = await generateLesson({ state: api.getState(), onProgress: report });
+        const lesson = await generateLesson({
+          state: api.getState(),
+          level: profile.level,
+          method: profile.method,
+          history: profile.history,
+          onProgress: report
+        });
         lessonEngine?.loadGenerated(lesson);
+        profile = appendHistory({
+          kind: 'lesson', method: profile.method,
+          stages: lesson.steps.length, at: new Date().toISOString()
+        });
         hud.close();
       }
     );
@@ -248,8 +264,18 @@ function boot(container: HTMLElement): void {
       onSelectWalkthrough: () => closeOthers('walkthrough'),
       onGenerate: async (report) => {
         closeOthers('walkthrough');
-        const wt = await generateWalkthrough({ state: api.getState(), onProgress: report });
+        const wt = await generateWalkthrough({
+          state: api.getState(),
+          level: profile.level,
+          method: profile.method,
+          history: profile.history,
+          onProgress: report
+        });
         walkthroughEngine?.loadGenerated(wt);
+        profile = appendHistory({
+          kind: 'walkthrough', method: profile.method,
+          stages: wt.beats.length, at: new Date().toISOString()
+        });
         hud.close();
       }
     });
@@ -257,9 +283,16 @@ function boot(container: HTMLElement): void {
     const helpEl = buildHelp();
     container.appendChild(helpEl);
 
+    const levelPanel = buildLevelPanel(profile.level, (lv) => {
+      profile = setLevel(lv);
+      hud.close();
+    });
+    container.appendChild(levelPanel);
+
     hud.register('lessons', 'Lessons', lessonsPanel.el);
     hud.register('practice', 'Practice', practicePanel.el);
     hud.register('explore', 'Explore', explorePanel.el);
+    hud.register('level', 'Level', levelPanel);
     if (debuggerPanel) hud.register('debugger', 'State', debuggerPanel.el);
     hud.register('help', 'Help', helpEl);
     hud.action('Scramble', () => api.scramble());
@@ -281,8 +314,14 @@ function boot(container: HTMLElement): void {
       }
     });
     walkthroughEngine.subscribe((s) => {
-      if (s.walkthrough) stage.set('walkthrough', s.walkthrough.title, s.beat.text, true);
-      else stage.clear('walkthrough');
+      if (s.walkthrough) {
+        stage.set('walkthrough', s.walkthrough.title, s.beat.text, true);
+        stage.setMove(
+          s.currentMove ? `${s.currentMove} · ${s.moveIndex + 1}/${s.moveCount}` : null
+        );
+      } else {
+        stage.clear('walkthrough');
+      }
     });
 
     // Stop the standby drift and recentre the cube while a lesson, drill, or
@@ -301,6 +340,55 @@ function boot(container: HTMLElement): void {
 
   // Notify any host (e.g. Gradio) that may be waiting on the API to attach.
   window.dispatchEvent(new CustomEvent('rubik-instructor-ready'));
+}
+
+const LEVEL_LABELS: Record<Level, string> = {
+  newbie: 'Newbie',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced'
+};
+
+// A small persona selector: newbie / intermediate / advanced. Persisted via the
+// profile store; the active choice personalises generated content.
+function buildLevelPanel(current: Level, onChange: (level: Level) => void): HTMLElement {
+  const el = document.createElement('div');
+  el.id = 'level';
+
+  const section = document.createElement('div');
+  section.className = 'exp-section';
+  section.textContent = 'Your level';
+  el.appendChild(section);
+
+  const row = document.createElement('div');
+  row.className = 'exp-row';
+  const buttons = new Map<Level, HTMLButtonElement>();
+  let active = current;
+  const refresh = (): void => {
+    for (const [lv, btn] of buttons) btn.classList.toggle('is-active', lv === active);
+  };
+  for (const lv of LEVELS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'exp-btn';
+    btn.textContent = LEVEL_LABELS[lv];
+    btn.addEventListener('click', () => {
+      active = lv;
+      refresh();
+      onChange(lv);
+    });
+    buttons.set(lv, btn);
+    row.appendChild(btn);
+  }
+  el.appendChild(row);
+
+  const hint = document.createElement('p');
+  hint.className = 'exp-hint';
+  hint.textContent =
+    'Newbie: gentle, layer-by-layer. Intermediate / Advanced: CFOP framing and terser cues.';
+  el.appendChild(hint);
+
+  refresh();
+  return el;
 }
 
 function buildHelp(): HTMLElement {

@@ -8,7 +8,7 @@ frontend over Server-Sent Events.
 from __future__ import annotations
 
 import json
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +36,17 @@ class NarrateRequest(BaseModel):
     # Provide a topic for a catalog plan, or a cube state for a full-solve plan.
     topic: Optional[str] = None
     state: Optional[Dict[str, List[str]]] = None
+    # Learner persona + session memory (client-side, sent each request).
+    level: Optional[Literal["newbie", "intermediate", "advanced"]] = None
+    method: Optional[Literal["lbl", "cfop"]] = None
+    history: Optional[List[dict]] = None
+
+
+def _resolve_method(req: "NarrateRequest") -> str:
+    if req.method:
+        return req.method
+    # Newbies learn layer-by-layer; intermediate/advanced get CFOP framing.
+    return "lbl" if req.level in (None, "newbie") else "cfop"
 
 
 @app.get("/health")
@@ -50,16 +61,17 @@ def topics() -> dict:
 
 
 def _build_plan(kind: str, req: NarrateRequest) -> VisualPlan:
+    method = _resolve_method(req)
     if req.topic:
         try:
-            return planner.plan(kind, topic=req.topic)
+            return planner.plan(kind, topic=req.topic, method=method)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
     if req.state is not None:
         if not is_well_formed(req.state):
             raise HTTPException(status_code=400, detail="malformed cube state")
         try:
-            return planner.plan(kind, state=req.state)
+            return planner.plan(kind, state=req.state, method=method)
         except Exception as exc:  # solver rejects an unsolvable state
             raise HTTPException(status_code=422, detail=f"could not plan a solve: {exc}")
     raise HTTPException(status_code=400, detail="provide either 'topic' or 'state'")
@@ -69,7 +81,7 @@ def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj)}\n\n"
 
 
-def _stream(plan: VisualPlan) -> Iterator[str]:
+def _stream(plan: VisualPlan, level: str, history_count: int) -> Iterator[str]:
     yield _sse({
         "type": "meta",
         "kind": plan.kind,
@@ -80,7 +92,9 @@ def _stream(plan: VisualPlan) -> Iterator[str]:
         "audience": plan.audience,
         "frameCount": len(plan.frames),
     })
-    for index, (frame, narration, used_fallback) in enumerate(narrate_plan(plan)):
+    for index, (frame, narration, used_fallback) in enumerate(
+        narrate_plan(plan, level=level, history_count=history_count)
+    ):
         if plan.kind == "walkthrough":
             item = beat_from(frame, narration)
             payload = {"type": "beat", "index": index, "fallback": used_fallback,
@@ -93,9 +107,11 @@ def _stream(plan: VisualPlan) -> Iterator[str]:
     yield _sse({"type": "done"})
 
 
-def _stream_response(plan: VisualPlan) -> StreamingResponse:
+def _stream_response(plan: VisualPlan, req: NarrateRequest) -> StreamingResponse:
+    level = req.level or "newbie"
+    history_count = len(req.history or [])
     return StreamingResponse(
-        _stream(plan),
+        _stream(plan, level, history_count),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -103,9 +119,9 @@ def _stream_response(plan: VisualPlan) -> StreamingResponse:
 
 @app.post("/narrate/walkthrough")
 def narrate_walkthrough(req: NarrateRequest) -> StreamingResponse:
-    return _stream_response(_build_plan("walkthrough", req))
+    return _stream_response(_build_plan("walkthrough", req), req)
 
 
 @app.post("/narrate/lesson")
 def narrate_lesson(req: NarrateRequest) -> StreamingResponse:
-    return _stream_response(_build_plan("lesson", req))
+    return _stream_response(_build_plan("lesson", req), req)

@@ -15,6 +15,12 @@ export interface Beat {
   highlight?: CubeletType | null;
   /** Pause after the moves settle before advancing (ms). */
   dwellMs?: number;
+  /**
+   * How the beat's moves play during auto-play:
+   *  - 'step' (default): one move at a time, paced + announced, so a human can follow.
+   *  - 'fast': all at once (used for setup/scramble beats that shouldn't be studied).
+   */
+  pace?: 'step' | 'fast';
 }
 
 export interface Walkthrough {
@@ -38,6 +44,12 @@ export interface WalkthroughView {
   beat: Beat;
   beatIndex: number;
   beatCount: number;
+  /** Index of the move currently playing within the beat (-1 if none). */
+  moveIndex: number;
+  /** Number of moves in the current beat. */
+  moveCount: number;
+  /** The move currently animating (for the caption badge), or null. */
+  currentMove: string | null;
   playing: boolean;
   finished: boolean;
 }
@@ -50,26 +62,39 @@ const POLL_MS = 80;
 const DEFAULT_DWELL_MS = 1100;
 // Slower per-move time during playback so demonstrated turns are easy to follow.
 const PLAYBACK_MOVE_MS = 380;
+// Quick per-move time for 'fast' setup beats (e.g. re-creating the scramble) so
+// the preview doesn't drag at the slow playback speed.
+const SETUP_MOVE_MS = 50;
+// Pause between consecutive moves so each turn reads as a discrete step.
+const INTER_MOVE_PAUSE_MS = 260;
+// How long the step's emphasis highlight is held before the cube returns to
+// full colour and the moves play.
+const HIGHLIGHT_EMPHASIS_MS = 900;
+// Fade duration for the emphasis highlight (passed through to the view).
+const HIGHLIGHT_FADE_MS = 220;
 
 export class WalkthroughEngine {
   private readonly api: WalkthroughApi;
   private readonly walkthroughs: Walkthrough[];
-  private readonly setHighlight: (type: CubeletType | null) => void;
+  private readonly setHighlight: (type: CubeletType | null, opts?: { fadeMs?: number }) => void;
   private readonly emitter = new Emitter<WalkthroughState>();
 
   private current: Walkthrough | null = null;
   private beatIndex = 0;
+  // Move cursor within the current beat: index of the last-applied move (-1 = none
+  // applied yet), and the beat's move count. Lets play pace move-by-move and lets
+  // pause/resume continue mid-beat without double-applying.
+  private moveIndex = -1;
+  private moveCount = 0;
+  private currentMove: string | null = null;
   private playing = false;
   private finished = false;
-  // Highest beat index whose moves are already applied to the current (un-reset)
-  // cube, so forward steps never double-apply and resuming after pause is safe.
-  private lastApplied = -1;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     api: WalkthroughApi,
     walkthroughs: Walkthrough[],
-    setHighlight: (type: CubeletType | null) => void
+    setHighlight: (type: CubeletType | null, opts?: { fadeMs?: number }) => void
   ) {
     this.api = api;
     this.walkthroughs = walkthroughs;
@@ -120,6 +145,9 @@ export class WalkthroughEngine {
     this.playing = false;
     this.finished = false;
     this.current = null;
+    this.moveIndex = -1;
+    this.moveCount = 0;
+    this.currentMove = null;
     this.api.setMoveDuration?.();
     this.setHighlight(null);
     this.emit();
@@ -132,7 +160,7 @@ export class WalkthroughEngine {
     this.playing = true;
     this.api.setMoveDuration?.(PLAYBACK_MOVE_MS);
     this.emit();
-    this.scheduleContinue();
+    this.resumePlayback();
   }
 
   pause(): void {
@@ -153,12 +181,31 @@ export class WalkthroughEngine {
     this.emit();
   }
 
+  // Manual forward: finish any partly-played beat, then apply the next beat's
+  // moves at once (incremental, no reset) so stepping is snappy.
   next(): void {
     if (!this.current) return;
     this.clearTimer();
     this.playing = false;
     this.finished = false;
-    this.stepForward();
+    this.api.setMoveDuration?.();
+    const beat = this.current.beats[this.beatIndex];
+    const moves = beat.moves ?? [];
+    if (this.moveIndex < moves.length - 1) {
+      const remaining = moves.slice(this.moveIndex + 1);
+      if (remaining.length) this.api.applyMoves(remaining);
+      this.moveIndex = moves.length - 1;
+    }
+    if (this.beatIndex < this.current.beats.length - 1) {
+      this.beatIndex += 1;
+      const nb = this.current.beats[this.beatIndex];
+      const nm = nb.moves ?? [];
+      if (nm.length) this.api.applyMoves(nm);
+      this.moveCount = nm.length;
+      this.moveIndex = nm.length - 1;
+      this.setHighlight(nb.highlight ?? null);
+    }
+    this.currentMove = null;
     this.emit();
   }
 
@@ -167,6 +214,7 @@ export class WalkthroughEngine {
     this.clearTimer();
     this.playing = false;
     this.finished = false;
+    this.api.setMoveDuration?.();
     this.seek(this.beatIndex - 1);
     this.emit();
   }
@@ -176,6 +224,7 @@ export class WalkthroughEngine {
   }
 
   // Hard seek via reset + cumulative replay (used by select / stop / previous).
+  // Leaves the target beat fully applied (moveIndex at its last move).
   private seek(index: number): void {
     if (!this.current) return;
     this.api.reset();
@@ -186,47 +235,123 @@ export class WalkthroughEngine {
     }
     if (moves.length) this.api.applyMoves(moves);
     this.beatIndex = index;
-    this.lastApplied = index;
-    this.setHighlight(this.current.beats[index].highlight ?? null);
-  }
-
-  // Enter the next beat incrementally (no reset). Returns false at the end.
-  private stepForward(): boolean {
-    if (!this.current || this.beatIndex >= this.current.beats.length - 1) return false;
-    this.beatIndex += 1;
-    const beat = this.current.beats[this.beatIndex];
-    if (this.beatIndex === this.lastApplied + 1) {
-      if (beat.moves?.length) this.api.applyMoves(beat.moves);
-      this.lastApplied = this.beatIndex;
-    }
+    const beat = this.current.beats[index];
+    this.moveCount = beat.moves?.length ?? 0;
+    this.moveIndex = this.moveCount - 1;
+    this.currentMove = null;
     this.setHighlight(beat.highlight ?? null);
-    return true;
   }
 
-  // Wait for the current beat's moves to settle, dwell, then auto-advance.
-  private scheduleContinue(): void {
-    this.timer = setTimeout(() => {
-      if (!this.playing || !this.current) return;
-      if (this.api.isBusy()) {
-        this.scheduleContinue();
-        return;
-      }
-      const dwell = this.current.beats[this.beatIndex].dwellMs ?? DEFAULT_DWELL_MS;
-      this.timer = setTimeout(() => this.autoStep(), dwell);
-    }, POLL_MS);
+  // Resume auto-play from the current cursor: continue mid-beat, or advance.
+  private resumePlayback(): void {
+    if (!this.playing || !this.current) return;
+    if (this.moveCount === 0) { this.advanceBeat(); return; }
+    if (this.moveIndex < 0) { this.startBeatMoves(); return; }
+    if (this.moveIndex >= this.moveCount - 1) { this.advanceBeat(); return; }
+    this.playNextMove();
   }
 
-  private autoStep(): void {
-    if (!this.playing) return;
-    if (!this.stepForward()) {
+  // Move to the next beat (or finish) and begin its emphasis + paced moves.
+  private advanceBeat(): void {
+    if (!this.playing || !this.current) return;
+    if (this.beatIndex >= this.current.beats.length - 1) {
       this.playing = false;
       this.finished = true;
+      this.currentMove = null;
       this.api.setMoveDuration?.();
+      this.setHighlight(null, { fadeMs: HIGHLIGHT_FADE_MS });
       this.emit();
       return;
     }
+    this.beatIndex += 1;
+    const beat = this.current.beats[this.beatIndex];
+    this.moveCount = beat.moves?.length ?? 0;
+    this.moveIndex = -1;
+    this.currentMove = null;
+    this.beginBeatPlayback();
+  }
+
+  // Pulse the step's highlight for emphasis, then restore full colour and play.
+  // A highlighted beat with no moves (e.g. the anatomy tour) keeps its spotlight
+  // for the whole beat — there are no turns to watch on a full-colour cube.
+  private beginBeatPlayback(): void {
+    if (!this.playing || !this.current) return;
+    const beat = this.current.beats[this.beatIndex];
+    this.emit(); // narration + counter for the new beat
+    const hasMoves = (beat.moves?.length ?? 0) > 0;
+    if (beat.highlight) {
+      this.setHighlight(beat.highlight, { fadeMs: HIGHLIGHT_FADE_MS });
+      if (!hasMoves) {
+        this.moveCount = 0;
+        this.moveIndex = -1;
+        this.currentMove = null;
+        this.afterMoves();
+        return;
+      }
+      this.timer = setTimeout(() => {
+        if (!this.playing) return;
+        this.startBeatMoves();
+      }, HIGHLIGHT_EMPHASIS_MS);
+    } else {
+      this.setHighlight(null, { fadeMs: HIGHLIGHT_FADE_MS });
+      this.startBeatMoves();
+    }
+  }
+
+  private startBeatMoves(): void {
+    if (!this.playing || !this.current) return;
+    const beat = this.current.beats[this.beatIndex];
+    // Restore full colour before turning so the moves are clearly visible.
+    this.setHighlight(null, { fadeMs: HIGHLIGHT_FADE_MS });
+    const moves = beat.moves ?? [];
+    this.moveCount = moves.length;
+    if (moves.length === 0) { this.afterMoves(); return; }
+    if (beat.pace === 'fast') {
+      this.api.setMoveDuration?.(SETUP_MOVE_MS); // burst through setup quickly
+      this.api.applyMoves(moves);
+      this.moveIndex = moves.length - 1;
+      this.currentMove = null;
+      this.emit();
+      this.waitSettle(() => {
+        this.api.setMoveDuration?.(PLAYBACK_MOVE_MS); // back to followable speed
+        this.afterMoves();
+      });
+      return;
+    }
+    this.moveIndex = -1;
+    this.playNextMove();
+  }
+
+  // Play one move, wait for it to settle, pause, then the next — so each turn
+  // reads as a discrete, announced step.
+  private playNextMove(): void {
+    if (!this.playing || !this.current) return;
+    const moves = this.current.beats[this.beatIndex].moves ?? [];
+    if (this.moveIndex >= moves.length - 1) { this.afterMoves(); return; }
+    this.moveIndex += 1;
+    this.currentMove = moves[this.moveIndex];
+    this.api.applyMoves([this.currentMove]);
     this.emit();
-    this.scheduleContinue();
+    this.waitSettle(() => {
+      this.timer = setTimeout(() => this.playNextMove(), INTER_MOVE_PAUSE_MS);
+    });
+  }
+
+  private afterMoves(): void {
+    if (!this.playing || !this.current) return;
+    this.currentMove = null;
+    this.emit();
+    const dwell = this.current.beats[this.beatIndex].dwellMs ?? DEFAULT_DWELL_MS;
+    this.timer = setTimeout(() => this.advanceBeat(), dwell);
+  }
+
+  // Poll until the animator has settled, then run cb.
+  private waitSettle(cb: () => void): void {
+    this.timer = setTimeout(() => {
+      if (!this.playing || !this.current) return;
+      if (this.api.isBusy()) { this.waitSettle(cb); return; }
+      cb();
+    }, POLL_MS);
   }
 
   private clearTimer(): void {
@@ -243,6 +368,9 @@ export class WalkthroughEngine {
       beat: this.current.beats[this.beatIndex],
       beatIndex: this.beatIndex,
       beatCount: this.current.beats.length,
+      moveIndex: this.moveIndex,
+      moveCount: this.moveCount,
+      currentMove: this.currentMove,
       playing: this.playing,
       finished: this.finished
     };

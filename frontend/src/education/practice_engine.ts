@@ -25,6 +25,10 @@ export interface PracticeView {
     score: number;
     completed: boolean;
     evaluation: EvaluationResult;
+    /** Epoch ms when the learner's first move started the clock (null until then). */
+    startedAt: number | null;
+    /** Final solve time in ms once the drill completes (null until then). */
+    solveMs: number | null;
 }
 
 export type PracticeState =
@@ -45,10 +49,16 @@ export class PracticeEngine {
     // Moves applied programmatically as drill setup must not count toward
     // evaluation; this counter swallows the matching onMove callbacks.
     private pendingSetupMoves = 0;
+    // Solve timing (for "solve faster" practice). The clock starts on the first
+    // counted move and stops when the drill completes.
+    private readonly now: () => number;
+    private startedAt: number | null = null;
+    private solveMs: number | null = null;
 
-    constructor(api: PracticeApi, drills: Drill[]) {
+    constructor(api: PracticeApi, drills: Drill[], now: () => number = () => Date.now()) {
         this.api = api;
         this.drills = drills;
+        this.now = now;
         this.unsubscribeMove = api.onMove((move) => this.handleMove(move));
     }
 
@@ -70,7 +80,7 @@ export class PracticeEngine {
         const drill = findDrill(this.drills, id);
         if (!drill) return;
         this.current = drill;
-        this.startRound(0, 0);
+        this.startRound(0, 0, true);
     }
 
     closeDrill(): void {
@@ -82,7 +92,7 @@ export class PracticeEngine {
 
     resetDrill(): void {
         if (!this.current) return;
-        this.startRound(0, 0);
+        this.startRound(0, 0, true);
     }
 
     applySetupMoves(): void {
@@ -113,14 +123,19 @@ export class PracticeEngine {
     }
 
     // Begin (or restart) at a given round with a given score, applying any setup
-    // moves so the drill is immediately playable.
-    private startRound(round: number, score: number): void {
+    // moves so the drill is immediately playable. `resetTimer` clears the solve
+    // clock (a fresh attempt); advancing rounds keeps it running.
+    private startRound(round: number, score: number, resetTimer: boolean): void {
         if (!this.current) return;
         this.round = round;
         this.score = score;
         this.completed = false;
         this.moveHistory = [];
         this.pendingSetupMoves = 0;
+        if (resetTimer) {
+            this.startedAt = null;
+            this.solveMs = null;
+        }
         if (this.current.setupMoves?.length) {
             this.pendingSetupMoves += this.current.setupMoves.length;
             this.api.applyMoves(this.current.setupMoves);
@@ -138,6 +153,7 @@ export class PracticeEngine {
             return;
         }
         this.moveHistory.push(move);
+        if (this.startedAt === null) this.startedAt = this.now(); // first move starts the clock
         const result = evaluate(this.current, this.moveHistory, this.api.getState());
         if (result.status === 'correct') {
             this.completeRound();
@@ -151,10 +167,11 @@ export class PracticeEngine {
         const nextScore = this.score + 1;
         if (this.round < this.roundCount() - 1) {
             // Advance to the next round, re-applying setup for the fresh attempt.
-            this.startRound(this.round + 1, nextScore);
+            this.startRound(this.round + 1, nextScore, false);
         } else {
             this.score = nextScore;
             this.completed = true;
+            this.solveMs = this.startedAt !== null ? this.now() - this.startedAt : null;
             this.moveHistory = [];
             this.emit();
         }
@@ -171,7 +188,9 @@ export class PracticeEngine {
             roundCount: this.roundCount(),
             score: this.score,
             completed: this.completed,
-            evaluation
+            evaluation,
+            startedAt: this.startedAt,
+            solveMs: this.solveMs
         };
     }
 

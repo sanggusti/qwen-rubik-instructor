@@ -35,6 +35,8 @@ class Beat(CamelModel):
     moves: list[str] = Field(default_factory=list)
     highlight: HighlightType = None
     dwell_ms: Optional[int] = None
+    # 'step' paces moves one-by-one (followable); 'fast' applies them at once (setup).
+    pace: Optional[Literal["step", "fast"]] = None
 
 
 class Walkthrough(CamelModel):
@@ -96,6 +98,7 @@ class VisualFrame(CamelModel):
     focus: str  # short machine hint of what to talk about
     expected: str  # deterministic description of the result
     dwell_ms: Optional[int] = None
+    pace: Optional[Literal["step", "fast"]] = None
 
 
 class VisualPlan(CamelModel):

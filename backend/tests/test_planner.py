@@ -77,6 +77,28 @@ def test_anatomy_has_no_moves_but_uses_highlights():
     assert {fr.highlight for fr in p.frames} >= {"center", "edge", "corner", "core"}
 
 
+def test_cfop_framing_relabels_and_still_solves():
+    state = _scrambled()
+    lbl = build_solve_walkthrough(clone_state(state), "lbl")
+    cfop = build_solve_walkthrough(clone_state(state), "cfop")
+    _assert_in_contract(cfop)
+    stages = [fr.stage for fr in cfop.frames]
+    assert "cross" in stages and "f2l" in stages  # CFOP vocabulary present
+    assert "f2l" not in [fr.stage for fr in lbl.frames]  # lbl keeps separate stages
+    # Framing must not change the solution: same moves, still solves from solved.
+    lbl_moves = [m for fr in lbl.frames for m in fr.moves]
+    cfop_moves = [m for fr in cfop.frames for m in fr.moves]
+    assert lbl_moves == cfop_moves
+    work = solved_state()
+    apply_moves(work, cfop_moves)
+    assert is_solved(work)
+
+
+def test_dispatcher_passes_method():
+    p = plan("walkthrough", state=_scrambled(), method="cfop")
+    assert any(fr.stage == "f2l" for fr in p.frames)
+
+
 def test_dispatcher_and_errors():
     assert plan("walkthrough", topic="sune").kind == "walkthrough"
     assert plan("lesson", state=_scrambled()).kind == "lesson"

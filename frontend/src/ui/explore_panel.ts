@@ -199,13 +199,7 @@ export class ExplorePanel {
     this.playerEl.appendChild(counter);
 
     if (state.beat.moves?.length) {
-      const moves = document.createElement('div');
-      moves.className = 'exp-moves';
-      // Long generated sequences would overflow the panel; summarize them.
-      moves.textContent = state.beat.moves.length > 24
-        ? `Moves: ${state.beat.moves.length} turns`
-        : `Moves: ${state.beat.moves.join(' ')}`;
-      this.playerEl.appendChild(moves);
+      this.playerEl.appendChild(this.renderMoves(state.beat.moves, state.moveIndex));
     }
 
     const actions = document.createElement('div');
@@ -249,6 +243,36 @@ export class ExplorePanel {
       this.generateBtn.disabled = false;
       this.generateBtn.textContent = 'Solve my cube (Qwen)';
     }
+  }
+
+  // Render the beat's moves as chips, highlighting the one currently playing.
+  // For long solves, show a window around the active move so it never overflows.
+  private renderMoves(moves: string[], activeIndex: number): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'exp-moves';
+    const MAX = 16;
+    let start = 0;
+    let end = moves.length;
+    if (moves.length > MAX) {
+      const focus = activeIndex < 0 ? 0 : activeIndex;
+      end = Math.min(moves.length, Math.max(focus + Math.ceil(MAX / 2), MAX));
+      start = Math.max(0, end - MAX);
+    }
+    const ellipsis = (): HTMLElement => {
+      const e = document.createElement('span');
+      e.className = 'exp-move-ellipsis';
+      e.textContent = '…';
+      return e;
+    };
+    if (start > 0) wrap.appendChild(ellipsis());
+    for (let i = start; i < end; i++) {
+      const chip = document.createElement('span');
+      chip.className = i === activeIndex ? 'exp-move-chip is-active' : 'exp-move-chip';
+      chip.textContent = moves[i];
+      wrap.appendChild(chip);
+    }
+    if (end < moves.length) wrap.appendChild(ellipsis());
+    return wrap;
   }
 
   private sectionTitle(text: string): HTMLElement {

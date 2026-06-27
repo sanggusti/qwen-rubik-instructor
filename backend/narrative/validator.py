@@ -19,7 +19,8 @@ from pipeline.cube.notation import normalize
 
 # Uppercase face/slice notation tokens optionally followed by ' or 2.
 _MOVE_IN_TEXT = re.compile(r"\b([UDLRFBMES])(['2]?)\b")
-MAX_TEXT_LEN = 1200
+# Narration must be short — roughly one sentence. Anything longer is re-prompted.
+MAX_TEXT_LEN = 220
 
 
 def claimed_moves(text: str) -> list[str]:

@@ -16,7 +16,7 @@ from typing import List, Optional
 from narrative.schema import VisualFrame, VisualPlan
 from pipeline.cube.facelet import State
 from pipeline.cube.notation import invert, normalize
-from pipeline.solver import solve
+from pipeline.solver import SolveStage, solve
 
 INTRO_DWELL_MS = 1600
 STAGE_DWELL_MS = 1200
@@ -61,7 +61,55 @@ def topic_ids() -> List[str]:
 
 # --- Solve-derived plans --------------------------------------------------
 
-def _solve_frames(state: State) -> List[VisualFrame]:
+# CFOP relabelling of the beginner LBL stages. This is a *framing*, not a real
+# CFOP solver: F2L here is still beginner insertions, and the last layer keeps the
+# beginner sub-steps (which don't split cleanly into OLL-then-PLL). Move ORDER is
+# preserved exactly, so the solution stays correct.
+_CFOP_LABELS = {
+    "cross": ("Cross", "Build the cross — CFOP's first step."),
+    "last-layer-cross": ("Last layer · orient edges",
+                         "Orient the last-layer edges into a cross (start of OLL)."),
+    "ll-corner-orientation": ("Last layer · orient corners",
+                              "Orient the last-layer corners (finishing OLL)."),
+    "ll-corner-position": ("Last layer · position corners",
+                           "Permute the last-layer corners (start of PLL)."),
+    "last-layer-edges": ("Last layer · position edges",
+                         "Permute the last-layer edges (finishing PLL)."),
+}
+
+
+def _reframe_cfop(stages: List[SolveStage]) -> List[SolveStage]:
+    """Relabel LBL stages with CFOP vocabulary, merging the two first-layer/middle
+    stages into a single F2L stage. Preserves move order (and thus correctness)."""
+    out: List[SolveStage] = []
+    f2l_moves: List[str] = []
+    f2l_stage: Optional[SolveStage] = None
+    for s in stages:
+        if s.name in ("first-layer-corners", "middle-layer"):
+            f2l_moves.extend(s.moves)
+            if f2l_stage is None:
+                f2l_stage = SolveStage(
+                    name="f2l", label="F2L (first two layers)", moves=[],
+                    highlight="corner", goal="Pair and insert the first two layers (F2L).",
+                    focus="the first two layers",
+                )
+                out.append(f2l_stage)
+            continue
+        if s.name in _CFOP_LABELS:
+            label, goal = _CFOP_LABELS[s.name]
+            out.append(SolveStage(name=s.name, label=label, moves=s.moves,
+                                  highlight=s.highlight, goal=goal, focus=s.focus))
+        else:
+            out.append(s)
+    if f2l_stage is not None:
+        f2l_stage.moves = f2l_moves
+    return out
+
+
+def _solve_frames(state: State, method: str = "lbl") -> List[VisualFrame]:
+    stages = solve(state)
+    if method == "cfop":
+        stages = _reframe_cfop(stages)
     frames = [
         VisualFrame(
             id="intro",
@@ -73,7 +121,7 @@ def _solve_frames(state: State) -> List[VisualFrame]:
             dwell_ms=INTRO_DWELL_MS,
         )
     ]
-    for stage in solve(state):
+    for stage in stages:
         if not stage.moves:
             continue  # this phase is already done for this scramble
         frames.append(
@@ -85,43 +133,50 @@ def _solve_frames(state: State) -> List[VisualFrame]:
                 focus=stage.focus or f"{stage.highlight} pieces",
                 expected=stage.goal,
                 dwell_ms=STAGE_DWELL_MS,
+                pace="step",  # solving moves play one-by-one so a human can follow
             )
         )
     return frames
 
 
-def build_solve_walkthrough(state: State) -> VisualPlan:
+def build_solve_walkthrough(state: State, method: str = "lbl") -> VisualPlan:
     # The walkthrough player resets to solved before playing, so the intro frame
     # first re-creates the user's scramble (inverse of the whole solution); the
     # later frames then solve it. This keeps the walkthrough self-contained.
-    frames = _solve_frames(state)
+    frames = _solve_frames(state, method)
     solution = [m for fr in frames for m in fr.moves]
     frames[0] = frames[0].model_copy(
         update={
             "moves": invert(solution),
             "expected": "Start from your scramble; we'll solve it one layer at a time.",
+            "pace": "fast",  # the scramble preview shouldn't be studied move-by-move
         }
     )
+    title = "Watch the full CFOP-style solve" if method == "cfop" else "Watch the full solve"
     return VisualPlan(
         kind="walkthrough",
         id=_short_id("wt-solve"),
-        title="Watch the full solve",
-        description="A layer-by-layer walkthrough that solves your scrambled cube.",
+        title=title,
+        description="A staged walkthrough that solves your scrambled cube.",
         frames=frames,
     )
 
 
-def build_solve_lesson(state: State) -> VisualPlan:
+def build_solve_lesson(state: State, method: str = "lbl") -> VisualPlan:
     # Lesson steps reuse the solve stages; the learner follows each phase and
     # marks it complete (manual), with the stage moves available as the answer.
+    title = (
+        "Solve your cube the CFOP way" if method == "cfop"
+        else "Solve your cube, step by step"
+    )
     return VisualPlan(
         kind="lesson",
         id=_short_id("lesson-solve"),
-        title="Solve your cube, step by step",
-        description="Follow the layer-by-layer method to solve your current cube.",
+        title=title,
+        description="Follow the staged method to solve your current cube.",
         track="beginner",
         audience="learners with a scrambled cube",
-        frames=_solve_frames(state),
+        frames=_solve_frames(state, method),
     )
 
 
@@ -167,7 +222,7 @@ def build_topic_walkthrough(topic: str) -> VisualPlan:
         VisualFrame(
             id="demo", stage="demo", moves=t["moves"], highlight=t["highlight"],
             focus=t["focus"], expected=f"Perform {t['title']}: {' '.join(t['moves'])}.",
-            dwell_ms=STAGE_DWELL_MS,
+            dwell_ms=STAGE_DWELL_MS, pace="step",
         ),
     ]
     return VisualPlan(
@@ -199,13 +254,23 @@ def build_topic_lesson(topic: str) -> VisualPlan:
 
 # --- Dispatcher -----------------------------------------------------------
 
-def plan(kind: str, state: Optional[State] = None, topic: Optional[str] = None) -> VisualPlan:
+def plan(
+    kind: str,
+    state: Optional[State] = None,
+    topic: Optional[str] = None,
+    method: str = "lbl",
+) -> VisualPlan:
     """Build a plan. `kind` is 'walkthrough' or 'lesson'. Provide `topic` for a
-    catalog plan, or `state` for a solve-derived plan."""
+    catalog plan, or `state` for a solve-derived plan. `method` ('lbl'|'cfop')
+    frames a solve-derived plan in beginner or CFOP vocabulary."""
     if kind not in ("walkthrough", "lesson"):
         raise ValueError(f"unknown kind: {kind!r}")
     if topic:
         return build_topic_walkthrough(topic) if kind == "walkthrough" else build_topic_lesson(topic)
     if state is not None:
-        return build_solve_walkthrough(state) if kind == "walkthrough" else build_solve_lesson(state)
+        return (
+            build_solve_walkthrough(state, method)
+            if kind == "walkthrough"
+            else build_solve_lesson(state, method)
+        )
     raise ValueError("plan requires either a topic or a cube state")

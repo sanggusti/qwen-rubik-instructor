@@ -10,6 +10,8 @@ import type { FaceKey } from '../../core/state';
 
 const STEP = CUBIE_SIZE + CUBIE_GAP;
 const DIM_OPACITY = 0.12;
+// Time-constant (ms) for easing opacity toward its target during a fade.
+const FADE_TAU = 90;
 
 // Where to float the six face letters (just outside each face's centre sticker).
 const FACE_LABEL_DIST = STEP * 1.5 + 0.25;
@@ -35,6 +37,12 @@ export class CubeView {
   private currentHighlight: CubeletType | null = null;
   private facesOn = false;
   private numbersOn = false;
+
+  // Per-material target opacity + whether a fade is in flight, so highlights can
+  // ease in/out (driven by update()) instead of popping.
+  private matTargets = new Map<THREE.Material, number>();
+  private fading = false;
+  private lastTs = 0;
 
   constructor(cube: CubeMesh) {
     this.cube = cube;
@@ -89,16 +97,52 @@ export class CubeView {
   }
 
   // Spotlight one cubelet class by fading the others. null restores full opacity.
-  highlight(type: CubeletType | null): void {
+  // Pass { fadeMs } to ease the transition (driven by update()); omit for an
+  // instant change (used by the manual highlight buttons).
+  highlight(type: CubeletType | null, opts: { fadeMs?: number } = {}): void {
     this.currentHighlight = type;
+    const animate = opts.fadeMs != null && opts.fadeMs > 0;
     for (const { cubie, mats } of this.cubieMaterials) {
       const lit = type === null || cubie.cubelet.type === type;
+      const target = lit ? 1 : DIM_OPACITY;
       for (const mat of mats) {
-        mat.transparent = !lit;
-        mat.opacity = lit ? 1 : DIM_OPACITY;
-        mat.depthWrite = lit;
+        this.matTargets.set(mat, target);
+        if (!animate) {
+          mat.opacity = target;
+          mat.transparent = !lit;
+          mat.depthWrite = lit;
+        } else {
+          mat.transparent = true; // stay blendable while easing
+          mat.depthWrite = false;
+        }
       }
     }
+    this.fading = animate;
+  }
+
+  // Ease each material's opacity toward its target. Cheap no-op once settled;
+  // call every frame from the host render loop.
+  update(now: number): void {
+    if (!this.fading) { this.lastTs = now; return; }
+    const dt = Math.min(now - this.lastTs, 64);
+    this.lastTs = now;
+    const k = 1 - Math.exp(-dt / FADE_TAU);
+    let stillFading = false;
+    for (const { mats } of this.cubieMaterials) {
+      for (const mat of mats) {
+        const target = this.matTargets.get(mat) ?? 1;
+        if (Math.abs(mat.opacity - target) < 0.01) {
+          mat.opacity = target;
+          const lit = target >= 1;
+          mat.transparent = !lit;
+          mat.depthWrite = lit;
+        } else {
+          mat.opacity += (target - mat.opacity) * k;
+          stillFading = true;
+        }
+      }
+    }
+    this.fading = stillFading;
   }
 
   setFaceLabels(on: boolean): void {
@@ -125,6 +169,8 @@ export class CubeView {
     this.faceSprites = [];
     this.numberSprites = [];
     this.cubieMaterials = [];
+    this.matTargets.clear();
+    this.fading = false;
   }
 }
 

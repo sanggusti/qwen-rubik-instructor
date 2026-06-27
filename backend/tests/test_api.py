@@ -76,6 +76,30 @@ def test_solve_walkthrough_stream_actually_solves(client):
     assert is_solved(work)
 
 
+def test_persona_intermediate_uses_cfop_framing(client):
+    state = solved_state()
+    apply_moves(state, "R U R' U' F2 B L D' R B'".split())
+    res = client.post("/narrate/walkthrough", json={
+        "state": state, "level": "intermediate",
+        "history": [{"kind": "walkthrough", "method": "cfop", "stages": 7, "at": "2026-06-28"}],
+    })
+    assert res.status_code == 200
+    events = parse_sse(res.text)
+    titles = events[0]["title"].lower()
+    assert "cfop" in titles  # intermediate -> CFOP framing in the meta title
+    # Still solves from solved (framing doesn't change the moves).
+    beats = [e["beat"] for e in events if e["type"] == "beat"]
+    work = solved_state()
+    apply_moves(work, [m for b in beats for m in b.get("moves", [])])
+    assert is_solved(work)
+
+
+def test_advanced_level_accepted(client):
+    res = client.post("/narrate/walkthrough", json={"topic": "sune", "level": "advanced"})
+    assert res.status_code == 200
+    assert any(e["type"] == "beat" for e in parse_sse(res.text))
+
+
 def test_bad_requests(client):
     assert client.post("/narrate/walkthrough", json={}).status_code == 400
     assert client.post("/narrate/walkthrough", json={"topic": "nope"}).status_code == 400

@@ -102,7 +102,9 @@ export class MoveAnimator {
   // like scrambles, where many moves are queued before any of them animate.
   private queue: string[] = [];
   private current: ActiveMove | null = null;
-  readonly durationMs: number;
+  // Per-move animation time. Mutable so callers (e.g. Watch & Learn) can slow it
+  // for smoother demonstrations and restore it afterwards.
+  durationMs: number;
   onMoveStart?: (name: string) => void;
   onMoveComplete?: (name: string) => void;
 

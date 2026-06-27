@@ -10,18 +10,19 @@ const TRACKS: { id: LessonTrack; label: string }[] = [
 ];
 
 export class LessonsPanel {
-    private el: HTMLDivElement;
-    private toggleEl: HTMLButtonElement;
+    readonly el: HTMLDivElement;
     private listEl!: HTMLDivElement;
     private detailEl!: HTMLDivElement;
     private trackButtons = new Map<LessonTrack, HTMLButtonElement>();
 
     private readonly engine: LessonEngine;
+    private readonly onSelect?: () => void;
     private track: LessonTrack = 'beginner';
     private unsubscribe: () => void;
 
-    constructor(parent: HTMLElement, engine: LessonEngine) {
+    constructor(parent: HTMLElement, engine: LessonEngine, onSelect?: () => void) {
         this.engine = engine;
+        this.onSelect = onSelect;
 
         this.el = document.createElement('div');
         this.el.id = 'lessons';
@@ -32,14 +33,6 @@ export class LessonsPanel {
         const title = document.createElement('h3');
         title.textContent = 'Lessons';
         head.appendChild(title);
-
-        const close = document.createElement('button');
-        close.className = 'lsn-close';
-        close.type = 'button';
-        close.setAttribute('aria-label', 'Close lessons');
-        close.textContent = '\u00d7';
-        close.addEventListener('click', () => this.hide());
-        head.appendChild(close);
         this.el.appendChild(head);
 
         const filter = document.createElement('div');
@@ -63,27 +56,9 @@ export class LessonsPanel {
         this.detailEl.className = 'lsn-detail';
         this.el.appendChild(this.detailEl);
 
-        this.toggleEl = document.createElement('button');
-        this.toggleEl.id = 'lsn-toggle';
-        this.toggleEl.type = 'button';
-        this.toggleEl.setAttribute('aria-label', 'Open lessons');
-        this.toggleEl.innerHTML = `<span class="dot"></span><span>Lessons</span>`;
-        this.toggleEl.addEventListener('click', () => this.show());
-        parent.appendChild(this.toggleEl);
-
         this.renderTrackButtons();
         this.renderList();
         this.unsubscribe = engine.subscribe((state) => this.renderDetail(state));
-    }
-
-    hide(): void {
-        this.el.classList.add('is-hidden');
-        this.toggleEl.classList.add('is-visible');
-    }
-
-    show(): void {
-        this.el.classList.remove('is-hidden');
-        this.toggleEl.classList.remove('is-visible');
     }
 
     dispose(): void {
@@ -112,7 +87,10 @@ export class LessonsPanel {
             btn.className = 'lsn-item';
             if (active && active.id === lesson.id) btn.classList.add('is-active');
             btn.textContent = lesson.title;
-            btn.addEventListener('click', () => this.engine.selectLesson(lesson.id));
+            btn.addEventListener('click', () => {
+                this.engine.selectLesson(lesson.id);
+                this.onSelect?.();
+            });
             this.listEl.appendChild(btn);
         }
     }

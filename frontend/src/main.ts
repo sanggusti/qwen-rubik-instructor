@@ -11,6 +11,12 @@ import { LESSON_CATALOG } from './education/lesson_catalog';
 import { PracticePanel } from './ui/practice_panel';
 import { PracticeEngine, type PracticeApi } from './education/practice_engine';
 import { PRACTICE_DRILLS } from './education/practice_drills';
+import { CubeView } from './scene/cube/cube_view';
+import { ExplorePanel } from './ui/explore_panel';
+import { WalkthroughEngine } from './education/walkthrough';
+import { WALKTHROUGHS } from './education/walkthroughs';
+import { Hud } from './ui/hud';
+import { StageCaption } from './ui/stage_caption';
 import { applyMove, solvedState, isSolved, cloneState, type State } from './core/state';
 import { generateScramble } from './scene/cube/scramble';
 import DEBUG_CONFIG from './configs/debug-config';
@@ -47,6 +53,8 @@ function boot(container: HTMLElement): void {
   const cube = new CubeMesh();
   ctx.scene.add(cube.root);
 
+  const cubeView = new CubeView(cube);
+
   const animator = new MoveAnimator(cube, cube.root);
 
   let state: State = solvedState();
@@ -57,6 +65,7 @@ function boot(container: HTMLElement): void {
   const moveSubscribers = new Set<(m: string, s: State) => void>();
   let lessonEngine: LessonEngine | null = null;
   let practiceEngine: PracticeEngine | null = null;
+  let walkthroughEngine: WalkthroughEngine | null = null;
 
   // Standby animation state.
   let idleEnabled = true; // false while a lesson/drill is active
@@ -86,6 +95,7 @@ function boot(container: HTMLElement): void {
       cube.cubies.push(c);
     }
     state = solvedState();
+    cubeView.rebind();
     debuggerPanel?.reset();
     debuggerPanel?.render(state);
     lessonEngine?.handleCubeReset();
@@ -98,8 +108,6 @@ function boot(container: HTMLElement): void {
   // Pause the standby drift while the user is interacting with the canvas.
   container.addEventListener('pointerdown', () => { pointerActive = true; markActivity(); });
   window.addEventListener('pointerup', () => { pointerActive = false; markActivity(); });
-
-  renderHelp(container);
 
   function updateIdle(now: number, dt: number): void {
     const idleReady = now - lastActivityTs > IDLE_DELAY_MS;
@@ -160,6 +168,10 @@ function boot(container: HTMLElement): void {
   window.rubikInstructor = api;
 
   if (!DEBUG_CONFIG.withoutUIMode) {
+    // A single bottom-centre menu bar owns every panel as a mutually-exclusive
+    // dropdown, keeping the corners and the cube clear.
+    const hud = new Hud(container);
+
     const lessonApi: LessonApi = {
       applyMoves: api.applyMoves,
       getState: api.getState,
@@ -168,7 +180,6 @@ function boot(container: HTMLElement): void {
     };
     const storage = typeof localStorage !== 'undefined' ? localStorage : null;
     lessonEngine = new LessonEngine(lessonApi, LESSON_CATALOG, storage);
-    new LessonsPanel(container, lessonEngine);
 
     const practiceApi: PracticeApi = {
       applyMoves: api.applyMoves,
@@ -177,25 +188,94 @@ function boot(container: HTMLElement): void {
       onMove: api.onMove
     };
     practiceEngine = new PracticeEngine(practiceApi, PRACTICE_DRILLS);
-    new PracticePanel(container, practiceEngine);
 
-    // Stop the standby drift and recentre the cube while a lesson or drill is
-    // active; resume it once both are closed.
+    const defaultMoveMs = animator.durationMs;
+    walkthroughEngine = new WalkthroughEngine(
+      {
+        applyMoves: api.applyMoves,
+        reset: api.reset,
+        isBusy: api.isBusy,
+        setMoveDuration: (ms) => { animator.durationMs = ms ?? defaultMoveMs; }
+      },
+      WALKTHROUGHS,
+      (type) => cubeView.highlight(type)
+    );
+
+    // The caption shows the active experience's text beside the cube; its close
+    // button ends whichever experience currently owns it.
+    const stage = new StageCaption(container, (owner) => {
+      if (owner === 'lesson') lessonEngine?.closeLesson();
+      else if (owner === 'practice') practiceEngine?.closeDrill();
+      else if (owner === 'walkthrough') walkthroughEngine?.close();
+    });
+
+    // Only one experience runs at a time, so the caption has a single owner.
+    const closeOthers = (keep: 'lesson' | 'practice' | 'walkthrough'): void => {
+      if (keep !== 'lesson') lessonEngine?.closeLesson();
+      if (keep !== 'practice') practiceEngine?.closeDrill();
+      if (keep !== 'walkthrough') walkthroughEngine?.close();
+    };
+
+    const lessonsPanel = new LessonsPanel(container, lessonEngine, () => {
+      closeOthers('lesson');
+      hud.close();
+    });
+    const practicePanel = new PracticePanel(container, practiceEngine, () => {
+      closeOthers('practice');
+      hud.close();
+    });
+    const explorePanel = new ExplorePanel(container, cubeView, walkthroughEngine, {
+      onPlay: () => hud.close(),
+      onSelectWalkthrough: () => closeOthers('walkthrough')
+    });
+
+    const helpEl = buildHelp();
+    container.appendChild(helpEl);
+
+    hud.register('lessons', 'Lessons', lessonsPanel.el);
+    hud.register('practice', 'Practice', practicePanel.el);
+    hud.register('explore', 'Explore', explorePanel.el);
+    if (debuggerPanel) hud.register('debugger', 'State', debuggerPanel.el);
+
+    // Feed the active experience's current text into the side caption.
+    lessonEngine.subscribe((s) => {
+      if (s.lesson) stage.set('lesson', s.lesson.title, `${s.step.title} — ${s.step.body}`);
+      else stage.clear('lesson');
+    });
+    practiceEngine.subscribe((s) => {
+      if (s.drill) {
+        const body = s.completed
+          ? `Drill complete ✓  Score ${s.score}/${s.roundCount}`
+          : `${s.drill.prompt}  ·  ${s.evaluation.message}`;
+        stage.set('practice', s.drill.title, body);
+      } else {
+        stage.clear('practice');
+      }
+    });
+    walkthroughEngine.subscribe((s) => {
+      if (s.walkthrough) stage.set('walkthrough', s.walkthrough.title, s.beat.text, true);
+      else stage.clear('walkthrough');
+    });
+
+    // Stop the standby drift and recentre the cube while a lesson, drill, or
+    // walkthrough is active; resume it once all are closed.
     const refreshIdle = (): void => {
-      const active = !!lessonEngine?.getCurrentLesson() || !!practiceEngine?.getCurrentDrill();
+      const active = !!lessonEngine?.getCurrentLesson()
+        || !!practiceEngine?.getCurrentDrill()
+        || !!walkthroughEngine?.isPlaying();
       idleEnabled = !active;
       if (active) markActivity();
     };
     lessonEngine.subscribe(refreshIdle);
     practiceEngine.subscribe(refreshIdle);
+    walkthroughEngine.subscribe(refreshIdle);
   }
 
   // Notify any host (e.g. Gradio) that may be waiting on the API to attach.
   window.dispatchEvent(new CustomEvent('rubik-instructor-ready'));
 }
 
-function renderHelp(container: HTMLElement): void {
-  if (DEBUG_CONFIG.withoutUIMode) return;
+function buildHelp(): HTMLElement {
   const help = document.createElement('div');
   help.id = 'help';
   help.innerHTML = `
@@ -203,7 +283,7 @@ function renderHelp(container: HTMLElement): void {
     <div><b>U/D/L/R/F/B</b> face turns &nbsp; <b>M/E/S</b> middle slices &nbsp; <b>X/Y/Z</b> whole cube</div>
     <div><b>Shift</b>+key = prime (counter-clockwise) &nbsp; <b>Space</b> = scramble &nbsp; <b>Enter</b> = reset</div>
   `;
-  container.appendChild(help);
+  return help;
 }
 
 function start(): void {

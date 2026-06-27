@@ -13,18 +13,19 @@ const CATEGORIES: { id: DrillCategory | 'all'; label: string }[] = [
 ];
 
 export class PracticePanel {
-    private el: HTMLDivElement;
-    private toggleEl: HTMLButtonElement;
+    readonly el: HTMLDivElement;
     private listEl!: HTMLDivElement;
     private detailEl!: HTMLDivElement;
     private filterButtons = new Map<DrillCategory | 'all', HTMLButtonElement>();
 
     private readonly engine: PracticeEngine;
+    private readonly onSelect?: () => void;
     private category: DrillCategory | 'all' = 'all';
     private unsubscribe: () => void;
 
-    constructor(parent: HTMLElement, engine: PracticeEngine) {
+    constructor(parent: HTMLElement, engine: PracticeEngine, onSelect?: () => void) {
         this.engine = engine;
+        this.onSelect = onSelect;
 
         this.el = document.createElement('div');
         this.el.id = 'practice';
@@ -35,14 +36,6 @@ export class PracticePanel {
         const title = document.createElement('h3');
         title.textContent = 'Practice';
         head.appendChild(title);
-
-        const close = document.createElement('button');
-        close.className = 'prc-close';
-        close.type = 'button';
-        close.setAttribute('aria-label', 'Close practice');
-        close.textContent = '\u00d7';
-        close.addEventListener('click', () => this.hide());
-        head.appendChild(close);
         this.el.appendChild(head);
 
         const filter = document.createElement('div');
@@ -66,27 +59,9 @@ export class PracticePanel {
         this.detailEl.className = 'prc-detail';
         this.el.appendChild(this.detailEl);
 
-        this.toggleEl = document.createElement('button');
-        this.toggleEl.id = 'prc-toggle';
-        this.toggleEl.type = 'button';
-        this.toggleEl.setAttribute('aria-label', 'Open practice');
-        this.toggleEl.innerHTML = `<span class="dot"></span><span>Practice</span>`;
-        this.toggleEl.addEventListener('click', () => this.show());
-        parent.appendChild(this.toggleEl);
-
         this.renderFilterButtons();
         this.renderList();
         this.unsubscribe = engine.subscribe((state) => this.renderDetail(state));
-    }
-
-    hide(): void {
-        this.el.classList.add('is-hidden');
-        this.toggleEl.classList.add('is-visible');
-    }
-
-    show(): void {
-        this.el.classList.remove('is-hidden');
-        this.toggleEl.classList.remove('is-visible');
     }
 
     dispose(): void {
@@ -117,7 +92,10 @@ export class PracticePanel {
             btn.className = 'prc-item';
             if (active && active.id === drill.id) btn.classList.add('is-active');
             btn.textContent = `${drill.title} \u00b7 ${drill.difficulty}`;
-            btn.addEventListener('click', () => this.engine.selectDrill(drill.id));
+            btn.addEventListener('click', () => {
+                this.engine.selectDrill(drill.id);
+                this.onSelect?.();
+            });
             this.listEl.appendChild(btn);
         }
     }

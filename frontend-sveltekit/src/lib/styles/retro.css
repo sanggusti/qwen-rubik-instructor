@@ -1,0 +1,74 @@
+/* Retro shell: page background + grid-horizon + neon panel chrome, shared by
+   any route. Import once, globally (see +layout.svelte) — these rules target
+   html/body and define utility classes, so they can't be component-scoped. */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background:
+    radial-gradient(120% 90% at 20% 12%, var(--bg-glow-a) 0%, transparent 55%),
+    radial-gradient(120% 110% at 82% 88%, var(--bg-glow-b) 0%, transparent 55%),
+    linear-gradient(150deg, var(--bg-mid) 0%, var(--bg-deep) 70%);
+}
+
+/* Faint receding grid-horizon, behind everything (isolation: isolate above
+   scopes this z-index to body's own stacking context, so -1 can't be
+   outranked by an ancestor's content). */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--accent-b-dim) 1px, transparent 1px),
+    linear-gradient(90deg, var(--accent-b-dim) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: linear-gradient(to top, black 0%, transparent 40%);
+  mask-image: linear-gradient(to top, black 0%, transparent 40%);
+  transform: perspective(260px) rotateX(62deg) scale(2.4, 1.6);
+  transform-origin: bottom center;
+  opacity: 0.4;
+  animation: grid-scroll 3s linear infinite;
+}
+
+@keyframes grid-scroll {
+  from { background-position: 0 0; }
+  to { background-position: 0 56px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before {
+    animation: none;
+  }
+}
+
+/* ---- Shared glass/neon panel chrome ---- */
+.glass-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    0 0 24px var(--accent-a-dim),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.neon-heading {
+  font-family: var(--font-display);
+  color: var(--accent-a);
+  text-shadow: 0 0 12px var(--accent-a-dim);
+}

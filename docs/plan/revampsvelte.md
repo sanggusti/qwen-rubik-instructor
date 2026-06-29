@@ -315,34 +315,256 @@ inherently imperative (mutates `THREE.Object3D` transforms frame-by-frame).
       with a headless-browser check: one `<canvas>` element, full-viewport
       size, zero console/page errors; `npm run check` (svelte-check) is clean
 
-### Phase 2 — Core + scene
-- [ ] Port `lib/cube/*` (`state.ts`, `events.ts`, `scramble.ts`, new shared `moves.ts`)
-- [ ] Build `CubeCanvas.svelte` (camera/lights, was `scene/scene.ts`)
-- [ ] Build `CubeMesh.svelte` (was `scene/cube/cube.ts` + `cubelets.ts`)
-- [ ] Wire `animator.ts` via `bind:ref` + `useTask`
-- [ ] **Verify:** solved cube renders, idle drift runs, `OrbitControls` works in debug mode
+### Phase 2 — Core + scene ✅ done
+- [x] Port `lib/cube/*` (`state.ts`, `events.ts`, `scramble.ts`, new shared `moves.ts`)
+      — `moves.ts` is the new canonical axis/slice → move-name table; `animator.ts`
+      now imports `parseMove`/`MoveSpec` from it instead of defining its own copy
+      (the `drag-controls.ts` reverse lookup will switch over in Phase 3).
+- [x] Ported `lib/scene/cubelets.ts` + `cube.ts` (logical/visual cubie model,
+      unchanged besides import paths) — not explicitly itemized above but
+      required by `CubeMesh.svelte`; both keep their existing test coverage
+      (`cubelets.test.ts`, `state.test.ts`, `animator.test.ts`, 48 tests passing).
+- [x] Build `CubeCanvas.svelte` (camera/lights, was `scene/scene.ts`) — uses
+      `@threlte/core`'s `<Canvas>` with a custom `createRenderer` (alpha,
+      antialias) and `dpr={[1, SCENE_CONFIG.maxPixelRatio]}`, `<T.PerspectiveCamera makeDefault>`
+      for the camera, and `@threlte/extras`'s `<OrbitControls>` gated by
+      `DEBUG_CONFIG.orbitControls`.
+- [x] Build `CubeMesh.svelte` (was `scene/cube/cube.ts` + `cubelets.ts`) — builds
+      the existing imperative `CubeMesh` class once and attaches its `root` Group
+      via `<T is={cube.root} />`, per §7's "don't fight the imperative parts" plan.
+- [x] Wire `animator.ts` via `useTask` (no `bind:ref` needed — the cube instance
+      is constructed directly in `CubeMesh.svelte`'s script, not passed in from a parent)
+- [x] Built `lib/scene/idle-drift.ts` (NEW, extracted from `main.ts`'s
+      `updateIdle`/`markActivity`) so the Phase 2 verify step has something to verify
+- [x] **Verify:** solved cube renders, idle drift runs, `OrbitControls` works in
+      debug mode — confirmed via headless Playwright: 1 canvas, zero console
+      errors, screenshot unchanged within the 2.5s idle delay then visibly
+      drifting after it, and OrbitControls visibly rotates the view on drag when
+      `DEBUG_CONFIG.orbitControls` is temporarily set `true` (reverted to `false` after).
+      **Found and fixed a pre-existing Phase 1 bug** blocking `npm run dev` entirely:
+      `+layout.svelte` imported `$lib/assets/favicon.svg`, which was never created
+      during scaffolding. Added a placeholder favicon using the synthwave palette
+      (a real one is still planned for Phase 5's retro skin pass).
 
-### Phase 3 — Interaction
-- [ ] Port `drag-controls.ts` (Pointer Events, unchanged logic)
-- [ ] Port `keyboard.ts`
-- [ ] Build `TouchMovePad.svelte` (on-screen move pad for touch)
-- [ ] **Verify:** face drag turns layers on desktop and a touch-emulated viewport; keyboard shortcuts still work
+### Phase 3 — Interaction ✅ done
+- [x] Ported `lib/scene/drag-controls.ts` (Pointer Events, unchanged logic) — its
+      reverse `moveFromAxisSlice` lookup now imports the canonical one from
+      `lib/cube/moves.ts` instead of keeping its own copy, per the Phase 2 note.
+      `lib/scene/drag-controls.test.ts` ported alongside it (12 tests).
+- [x] Ported `lib/scene/keyboard.ts` (unchanged logic, import paths updated).
+- [x] Wired both into `CubeMesh.svelte`'s `onMount` (it already owns `cube`/
+      `animator` per Phase 2's deviation from the original `bind:ref` plan), using
+      `useThrelte()` for the live camera/canvas `attachDragControls` needs. Added a
+      local `resetCube`/`scramble` (port of `main.ts`'s `resetCube`/`api.scramble`,
+      minus the `state`/engine wiring that doesn't exist until Phase 4).
+- [x] Added `lib/scene/cube-controls.ts` — a minimal `CubeControls` interface
+      (`applyMove`/`scramble`/`reset`) `CubeMesh.svelte` hands to its parent via an
+      `onReady` prop, so DOM UI outside the `<Canvas>` (TouchMovePad) can drive the
+      cube without reaching into Three.js internals. Phase 4's `stores/cube.svelte.ts`
+      will grow a richer, reactive version of this same shape.
+- [x] Built `lib/components/TouchMovePad.svelte` — a 4×4 grid of the 12 move
+      buttons plus prime-toggle/Scramble/Reset, shown only behind
+      `matchMedia('(pointer: coarse)')`, calling the `CubeControls` API above.
+- [x] **Verify:** confirmed via headless Playwright with real CDP-level input
+      (not just JS-dispatched events) — mouse drag turns a face on desktop;
+      keyboard U/Shift+U, Space (scramble), and Enter (reset) all work; the pad
+      renders under a coarse-pointer emulated viewport and its taps/prime-toggle/
+      scramble/reset all work.
+      **Found and fixed a real touch-drag bug surfaced by this verify pass:**
+      a CDP touch-event drag on the canvas produced `pointerdown` →
+      `pointermove` → `pointercancel` instead of `pointerup` — the browser's
+      native pan/scroll gesture was winning and cancelling the pointer sequence
+      before `attachDragControls` ever saw the release, exactly the conflict
+      flagged in §8.2/§13. Fixed by adding `touch-action: none` to
+      `CubeCanvas.svelte`'s `.stage` wrapper; re-ran the same CDP touch sequence
+      afterward and confirmed `pointerup` now fires with zero `pointercancel`s.
 
-### Phase 4 — Panels + engines
-- [ ] Port `education/*` engines unchanged (lesson, practice, walkthrough, coaching, profile, validators)
-- [ ] Build `lib/stores/*.svelte.ts` (cube, lesson, practice, walkthrough, profile)
-- [ ] Build `LessonsPanel.svelte`, `PracticePanel.svelte`, `ExplorePanel.svelte`
-- [ ] Build `DebuggerPanel.svelte`, `LevelPanel.svelte`, `StageCaption.svelte`, `HudBar.svelte`
-- [ ] **Verify:** a full lesson can be started, stepped through, and completed; only one panel/caption owner at a time, matching today's `closeOthers` rule
+#### Phase 3 addendum — view-rotation, layer guidance, no idle drift
 
-### Phase 5 — Retro skin + mobile pass
-- [ ] Build `tokens.css` (synthwave palette: `#07030d` bg, `#ff2bd6`/`#00f0ff` accents)
-- [ ] Build `retro.css` (grid-horizon background, neon panel glow)
-- [ ] Add safe-area insets (`env(safe-area-inset-bottom)`) to HUD bar + stage caption
-- [ ] Bump HUD tap-target sizing for mobile (padding/font-size at the 760px breakpoint)
-- [ ] Disable page pinch/double-tap zoom on the canvas (`touch-action: none`)
-- [ ] Wire up the currently-dead `SCENE_CONFIG.isMobile` flag (lower pixel ratio, disable antialias)
-- [ ] **Verify:** manual check in a real mobile viewport (or device emulation) — legibility of neon-on-black text, no accidental browser zoom while dragging, HUD reachable with a thumb
+Follow-up scope added after the initial Phase 3 verify, on direct request: the
+cube should never move on its own, the user should be able to rotate the *view*
+by touch/drag on empty space, and a drag-in-progress should show which layer it
+will turn.
+
+- [x] **Removed `lib/scene/idle-drift.ts` entirely** (and its `CubeMesh.svelte`
+      usage) — the standby "breathing" animation from Phase 2 is gone; the cube
+      now only ever moves in response to direct input. Confirmed via Playwright by
+      reading the live camera/`cube.root` transform: both stayed bit-for-bit
+      identical (`[5, 5, 7]` / zero rotation) across an 8s+ idle window.
+- [x] **Un-gated `<OrbitControls>` in `CubeCanvas.svelte`** — previously only
+      active behind `DEBUG_CONFIG.orbitControls` (removed that now-dead flag from
+      `config/debug-config.ts`), now always on, so dragging *empty* canvas space
+      rotates the camera around the cube on both mouse and touch.
+- [x] **Made the two drag interpretations mutually exclusive**: `drag-controls.ts`
+      calls `ev.stopPropagation()` in `onPointerDown` once a sticker hit is found,
+      which stops the event from reaching `OrbitControls`' listener on the
+      Threlte canvas-wrapper ancestor. Verified by reading the camera transform
+      through a full sticker-drag gesture (start/mid/end) — position never moved —
+      while a drag on empty space moved it substantially; in neither case did the
+      other interpretation also fire.
+- [x] **Layer-preview guidance while dragging a sticker**: refactored
+      `resolveDragToMove` to extract `resolveAxisSlice` (axis+slice only, no turn
+      direction — that part can't be known until enough drag direction is read,
+      but axis/slice can, slightly earlier); a new `pointermove` handler reports
+      it through a `DragOptions.onPreviewLayer` callback once the drag passes a
+      small 6px intent threshold (separate from the existing 14px move-commit
+      threshold), de-duped so it only fires when the candidate layer changes.
+      `CubeMesh.svelte` feeds this into the new `lib/scene/layer-highlight.ts`
+      (`LayerHighlight`), which adds a translucent cyan overlay mesh — sharing the
+      sticker's own geometry, parented to it — on every sticker of the previewed
+      layer, removed on release/cancel. `resolveAxisSlice` is unit-tested directly
+      (3 new tests; 63 total now); the highlight itself was verified by counting
+      overlay meshes mid-drag (21, exactly matching a 9-cubie face layer's sticker
+      count: 4 corners×3 + 4 edges×2 + 1 center×1) and confirming the count drops
+      to 0 after release.
+- [x] **Verify:** all of the above checked together via Playwright with real
+      CDP touch input — idle window produces zero camera/cube change; empty-space
+      drag orbits the camera only; sticker drag turns the layer, leaves the camera
+      untouched, and shows/clears the highlight at the right times; `npm run check`
+      and `npm run test:unit` (63 tests) both clean throughout.
+
+### Phase 4 — Panels + engines ✅ done
+- [x] Ported `education/*` engines unchanged (lesson, practice, walkthrough, coaching,
+      profile, validators, lesson_progress, lesson_catalog, practice_drills,
+      drill_generator, evaluation, walkthroughs) plus their existing test suites —
+      only `../core/state` → `../cube/state` / `../core/events` → `../cube/events` /
+      `../scene/cube/cubelets` → `../scene/cubelets` import-path edits, logic untouched.
+      `education/remote_content.ts` (Qwen SSE client) is **not** ported — still Phase 6
+      scope — so the "Lesson/Solve from my cube (Qwen)" generate buttons are deferred
+      along with it; the catalog-backed lessons/practice/walkthroughs are fully wired.
+- [x] Also ported `scene/cube/cube_view.ts` → `lib/scene/cube-view.ts` (highlight/
+      face-label/number-label overlay), needed by `ExplorePanel` and the walkthrough
+      engine's per-beat emphasis callback — not itemized in §6 originally but required,
+      same kind of emergent addition as Phase 3's `cube-controls.ts`.
+- [x] Built `lib/stores/cube.svelte.ts` — a singleton reactive store (`state`, `isBusy`,
+      `isSolved` via runes) replacing `window.rubikInstructor`; `CubeMesh.svelte` binds
+      the live `MoveAnimator`/rebuild-cube functions into it via a `bind()` call in
+      `onMount` (same pattern Phase 3's `cube-controls.ts` used) instead of the
+      originally-planned `bind:ref`. **Deviation:** `lib/scene/cube-controls.ts` is
+      retired — its `CubeControls` shape was absorbed into `cube.svelte.ts`, which is
+      the "richer, reactive version of this same shape" its own code comment predicted.
+- [x] Added `lib/stores/cube-view.svelte.ts` (not itemized in §6, same rationale as
+      `cube-view.ts` above) — reactive bridge over `CubeView` so `ExplorePanel`'s
+      highlight/label buttons and the walkthrough engine's emphasis pulses share one
+      `highlightType`/`facesOn`/`numbersOn` state instead of manual DOM re-renders.
+- [x] Built `lib/stores/lesson.svelte.ts`, `practice.svelte.ts`, `walkthrough.svelte.ts`,
+      `profile.svelte.ts` — each wraps its engine's existing `.subscribe()` into a
+      `snapshot` rune, per §9.
+- [x] Built `lib/components/Panel.svelte` (shared glass chrome), `LessonsPanel.svelte`,
+      `PracticePanel.svelte`, `ExplorePanel.svelte`, `DebuggerPanel.svelte`,
+      `LevelPanel.svelte`, `StageCaption.svelte` — ports of the corresponding
+      `ui/*.ts` classes' rendering logic into reactive Svelte templates. `HelpPanel`
+      (the old Help HUD tab) was **not** ported — not itemized in this phase's
+      checklist, left out under "don't add features beyond what was asked."
+- [x] Built `HudBar.svelte` + `HudTab.svelte` — **deviation from the original bottom
+      dropdown-bar design, per direct request**: a single left-edge "Guide" icon
+      toggles a left-docked vertical tab rail (Lessons/Practice/Explore/State/Level);
+      picking a tab opens its panel as a **centered modal** (high z-index, dimmed
+      backdrop, explicit × close button, Escape/backdrop-click also close) rather
+      than a side dropdown. Scramble/Reset live as their own always-visible buttons
+      next to the Guide icon (not gated behind the drawer). On narrow viewports
+      (`max-width: 760px`) the Guide icon moves to top-left, Scramble/Reset relocate
+      to a fixed bottom-center row (clearing `TouchMovePad`), and the tab rail drops
+      down from the Guide icon instead of sitting beside it. Opening any tab still
+      calls the same `closeOthers`-style callback as the legacy `Hud`, and selecting
+      a lesson/drill/walkthrough/level still collapses the whole rail — same
+      single-owner rule as before, just relaid-out.
+- [x] **Verify:** confirmed via headless Playwright (in-page DOM `element.click()`
+      driving, since this session's real pointer-event simulation was too slow against
+      the continuous Threlte render loop to be reliable) — a lesson can be selected,
+      its step stepped through and marked complete (step counter advances, status
+      flips to "In progress"/"complete"), and opening Practice while a lesson is
+      active closes the lesson (and vice versa), matching `closeOthers`. `npm run
+      check` (0 errors) and `npm run test:unit` (145 tests, 14 files — the 63 from
+      Phase 3 plus the freshly-ported education suites) both clean throughout.
+      Visual layout (left rail, centered modal, mobile rearrangement) confirmed via
+      screenshots at desktop (1280×800) and mobile (390×844) viewports.
+
+### Phase 5 — Retro skin + mobile pass ✅ done
+- [x] Built `lib/styles/tokens.css` — synthwave palette (`#07030d` bg, `#ff2bd6`
+      magenta / `#00f0ff` cyan accents, matching the placeholder favicon's
+      palette from Phase 2). Two-accent rule used consistently everywhere:
+      `--accent-a` (magenta) for titles/section labels/resting chrome,
+      `--accent-b` (cyan) for active/selected/hover "lit up" feedback. Also
+      added `--font-display` (Orbitron via Google Fonts, loaded in
+      `+layout.svelte`'s `<svelte:head>`) for the one neon-sign display font
+      called for in §8.1, with `--font-mono` as its fallback.
+- [x] Built `lib/styles/retro.css` — global `html body` reset/background
+      (ported from the legacy `#app` gradient, retinted), an animated
+      grid-horizon (`body::before`, `perspective`/`rotateX` receding lines,
+      `prefers-reduced-motion` respected) sitting at `z-index: -1` behind
+      everything via `isolation: isolate` on `body`, and shared `.glass-panel`
+      / `.neon-heading` utility classes. Imported once, globally, in
+      `+layout.svelte`.
+- [x] Retinted every component that had Phase 1–4's placeholder cool-blue
+      hardcoded hex/rgba (`Panel`, `HudBar`, `HudTab`, `StageCaption`,
+      `TouchMovePad`, `DebuggerPanel`, `LessonsPanel`, `PracticePanel`,
+      `ExplorePanel`, `LevelPanel`) to consume the new tokens — no layout/
+      structure changes, color-only swap plus `Panel.svelte` now applies the
+      shared `.glass-panel` class instead of its own duplicate chrome rules.
+- [x] Added safe-area insets: `HudBar`'s mobile guide position
+      (`env(safe-area-inset-top)`) and `StageCaption`'s mobile bottom-sheet
+      (`env(safe-area-inset-bottom)`) — `TouchMovePad` already had this from
+      Phase 3. Added `viewport-fit=cover` to `app.html`'s viewport meta, since
+      `env(safe-area-inset-*)` resolves to `0` on iOS without it (the safe-area
+      work would otherwise be a no-op).
+- [x] Bumped HUD tap targets at the existing 760px breakpoint: `HudTab` to
+      44px min-height/12px padding, `HudBar`'s `.guide-toggle`/`.dock-action`
+      to 44×44px minimum.
+- [x] Disable page pinch/double-tap zoom on the canvas (`touch-action: none`) —
+      done early, in Phase 3, since it was required to make touch dragging work
+      at all (see Phase 3's verify note); applied to `CubeCanvas.svelte`'s `.stage`.
+- [x] Wired up the previously-dead `SCENE_CONFIG.isMobile` flag in
+      `CubeCanvas.svelte`: detected once via `matchMedia('(pointer: coarse)')`
+      OR `(max-width: 760px)`, then used to cap `dpr` at 1.5 (instead of the
+      configured 2) and pass `antialias: false` to the renderer on those
+      devices.
+- [x] **Verify:** `npm run check` (0 errors) and `npm run test` (145 tests, 14
+      files) clean throughout. Visually confirmed via headless Playwright at
+      1280×800 and 390×844 — synthwave background/grid-horizon renders behind
+      the cube, `Lessons` modal shows the intended magenta-resting/cyan-active
+      duotone on the shared glass chrome, HUD buttons meet the 44px target and
+      sit thumb-reachable at the mobile breakpoint, and `touch-action: none`
+      (from Phase 3) still prevents page-zoom while dragging.
+      **Found and fixed one session-blocking issue along the way:** a stale
+      Playwright Chrome-for-Testing process from an earlier session was
+      holding the shared automation browser-profile lock; killed it (user
+      confirmed) and relaunched fresh to complete the visual check.
+
+#### Phase 5 addendum — on-demand touch keypad
+
+Follow-up scope added after the initial Phase 5 verify, on direct request: the
+touch move-pad's button grid was always visible on any coarse-pointer device,
+permanently covering part of the cube; it should be hidden by default and
+opened on demand, and the always-visible Scramble/Reset row needed to sit
+flush at the bottom on mobile rather than floating mid-screen.
+
+- [x] Lifted a `keypadOpen` boolean into `+page.svelte` (hidden by default),
+      passed as `open` to `TouchMovePad` (gating its render alongside the
+      existing `isCoarsePointer` check) and as `keypadOpen`/`onToggleKeypad`
+      to `HudBar`, which now renders a third quick-action button, **Keypad**,
+      beside Scramble/Reset — shown only on coarse-pointer devices, with the
+      same cyan "is-active" glow as the Guide toggle when open.
+- [x] Removed the redundant Scramble/Reset buttons that lived *inside*
+      `TouchMovePad`'s own actions row — they duplicated the ones now always
+      visible directly below in `HudBar`, and at the pad's narrow grid width
+      their labels overlapped (`ScrambleReset`, no gap). The pad's actions row
+      is now just the prime (`'`) toggle, centered.
+- [x] Changed `HudBar`'s mobile `.quick-actions` rule from
+      `bottom: calc(230px + env(safe-area-inset-bottom))` (a fixed offset that
+      existed to clear the formerly-always-on keypad) to
+      `bottom: max(12px, env(safe-area-inset-bottom))` — flush bottom-center,
+      per direct request. `TouchMovePad` gained a matching mobile-only
+      `bottom: calc(72px + max(12px, env(safe-area-inset-bottom)))` so that
+      when it *is* opened, it stacks cleanly above the quick-actions row
+      instead of overlapping it.
+- [x] **Verify:** confirmed via Playwright with `matchMedia` mocked to report
+      a coarse pointer (real touch/device emulation wasn't available in this
+      session) at a 390×844 viewport — Scramble/Reset/Keypad sit centered at
+      the very bottom by default with the grid hidden; tapping Keypad reveals
+      the 4×4 move grid plus a centered prime toggle directly above that row
+      with no overlap and no text overflow. `npm run check` and `npm run
+      test` stayed clean throughout.
 
 ### Phase 6 — Backend wiring + cutover
 - [ ] Port `narrate.ts` (SSE client, unchanged parsing logic)

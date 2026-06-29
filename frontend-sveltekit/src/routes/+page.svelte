@@ -1,14 +1,30 @@
 <script lang="ts">
-	import { Canvas } from '@threlte/core';
+  import CubeCanvas from '$lib/scene/CubeCanvas.svelte';
+  import CubeMesh from '$lib/scene/CubeMesh.svelte';
+  import TouchMovePad from '$lib/components/TouchMovePad.svelte';
+  import StageCaption from '$lib/components/StageCaption.svelte';
+  import HudBar from '$lib/components/HudBar.svelte';
+  import { lessonStore } from '$lib/stores/lesson.svelte';
+  import { practiceStore } from '$lib/stores/practice.svelte';
+  import { walkthroughStore } from '$lib/stores/walkthrough.svelte';
+
+  // Only one experience runs at a time, so the stage caption has a single
+  // owner. `keep: 'none'` ends every experience (used by tabs that own none,
+  // e.g. State/Level) — same rule as the legacy main.ts's closeOthers.
+  function closeOthers(keep: 'lesson' | 'practice' | 'walkthrough' | 'none'): void {
+    if (keep !== 'lesson') lessonStore.closeLesson();
+    if (keep !== 'practice') practiceStore.closeDrill();
+    if (keep !== 'walkthrough') walkthroughStore.close();
+  }
+
+  // Hidden by default on touch devices; HudBar's "Keypad" button reveals it.
+  let keypadOpen = $state(false);
 </script>
 
-<div class="stage">
-	<Canvas></Canvas>
-</div>
+<CubeCanvas>
+  <CubeMesh />
+</CubeCanvas>
 
-<style>
-	.stage {
-		width: 100%;
-		height: 100vh;
-	}
-</style>
+<TouchMovePad open={keypadOpen} />
+<StageCaption />
+<HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />

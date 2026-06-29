@@ -1,0 +1,31 @@
+/* Synthwave / outrun retro design tokens — shared by any route or component.
+   Two accent hues by design: magenta for titles/labels (resting chrome),
+   cyan for active/selected/hover state (the "lit up" feedback color). */
+:root {
+  --bg-deep: #07030d;
+  --bg-mid: #170a26;
+  --bg-glow-a: #3a0e57;
+  --bg-glow-b: #0a2440;
+
+  --accent-a: #ff2bd6;
+  --accent-a-dim: rgba(255, 43, 214, 0.35);
+  --accent-a-bg: rgba(255, 43, 214, 0.12);
+
+  --accent-b: #00f0ff;
+  --accent-b-dim: rgba(0, 240, 255, 0.35);
+  --accent-b-bg: rgba(0, 240, 255, 0.12);
+
+  --panel-bg: rgba(18, 6, 32, 0.78);
+  --panel-border: rgba(255, 43, 214, 0.28);
+
+  --text: #f3ecff;
+  --text-dim: #a394c2;
+
+  --ok: #39ffb0;
+  --ok-dim: rgba(57, 255, 176, 0.4);
+  --no: #ff3d6e;
+  --no-dim: rgba(255, 61, 110, 0.45);
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: 'Orbitron', var(--font-mono);
+}

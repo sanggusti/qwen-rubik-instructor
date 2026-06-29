@@ -1,3 +1,34 @@
+## MCP Tools
+
+Two MCP servers are configured for this project (`.mcp.json`). Use them proactively — they are faster and more accurate than guessing.
+
+### `svelte` — `@sveltejs/mcp`
+
+Provides live Svelte/SvelteKit documentation via three tools:
+
+| Tool | When to use |
+|---|---|
+| `list-sections` | Before any Svelte/SvelteKit work — discover which doc sections are relevant |
+| `get-documentation` | Fetch exact API docs for the feature you are about to implement |
+| `svelte-autofixer` | After writing or editing `.svelte` files — detect and fix Svelte-specific issues |
+
+**Rules:**
+- Always call `get-documentation` before implementing any Svelte 5 rune, SvelteKit routing pattern, or adapter config. Never rely on training-data memory for Svelte APIs.
+- After any `.svelte` edit, run `svelte-autofixer` on the changed file before reporting done.
+- Section paths to know: `kit/routing`, `kit/load`, `kit/form-actions`, `kit/state-management`, `cli/playwright`, `cli/vitest`.
+
+### `playwright` — `@playwright/mcp`
+
+Controls a Chromium browser to test the frontend at `http://localhost:5173`.
+
+**Rules:**
+- Start the dev server (`npm run dev` in `frontend-sveltekit/`) before any browser tool call.
+- Use for UI verification when asked to verify, screenshot, or test a feature — not as a substitute for unit tests.
+- After any visual change, take a screenshot to confirm the golden path renders correctly.
+- Do not use Playwright MCP for logic that can be covered by Vitest unit/component tests.
+
+---
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**

@@ -1,0 +1,125 @@
+// Bridge to the Qwen backend: POST the cube state (or a topic) to an SSE
+// endpoint and assemble the streamed beats/steps into a Walkthrough / Lesson the
+// existing engines can play. EventSource is GET-only, so we read the fetch body
+// stream and parse `data: ...` frames by hand.
+
+import type { State } from '../core/state';
+import type { Walkthrough, Beat } from './walkthrough';
+import type { Lesson, LessonStep } from './lesson_types';
+import type { Level, Method, HistoryEntry } from './profile';
+
+const BASE_URL =
+  ((import.meta as { env?: Record<string, string | undefined> }).env?.VITE_BACKEND_URL) ??
+  'http://localhost:8000';
+
+export interface GenerateOptions {
+  topic?: string;
+  state?: State;
+  /** Learner persona — personalises method, narration, and pacing. */
+  level?: Level;
+  method?: Method;
+  /** Compact recent activity for session continuity. */
+  history?: HistoryEntry[];
+  /** Called as each beat/step arrives, for progress UI. */
+  onProgress?: (done: number, total: number) => void;
+}
+
+function requestBody(opts: GenerateOptions): Record<string, unknown> {
+  return {
+    topic: opts.topic,
+    state: opts.state,
+    level: opts.level,
+    method: opts.method,
+    history: opts.history
+  };
+}
+
+interface MetaEvent {
+  type: 'meta';
+  kind: 'walkthrough' | 'lesson';
+  id: string;
+  title: string;
+  description: string;
+  track?: Lesson['track'];
+  audience?: string;
+  frameCount: number;
+}
+
+async function* streamEvents(path: string, body: unknown): AsyncGenerator<Record<string, unknown>> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    let detail = `Backend returned ${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  if (!res.body) throw new Error('Backend returned no stream');
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buffer.indexOf('\n\n')) >= 0) {
+      const frame = buffer.slice(0, sep).trim();
+      buffer = buffer.slice(sep + 2);
+      if (frame.startsWith('data: ')) {
+        yield JSON.parse(frame.slice('data: '.length));
+      }
+    }
+  }
+}
+
+function requireMeta(event: Record<string, unknown>, kind: MetaEvent['kind']): MetaEvent {
+  if (event.type !== 'meta' || event.kind !== kind) {
+    throw new Error('Unexpected response from backend (no matching meta event)');
+  }
+  return event as unknown as MetaEvent;
+}
+
+export async function generateWalkthrough(opts: GenerateOptions): Promise<Walkthrough> {
+  const beats: Beat[] = [];
+  let meta: MetaEvent | null = null;
+  for await (const event of streamEvents('/narrate/walkthrough', requestBody(opts))) {
+    if (event.type === 'meta') {
+      meta = requireMeta(event, 'walkthrough');
+    } else if (event.type === 'beat') {
+      beats.push(event.beat as Beat);
+      opts.onProgress?.(beats.length, meta?.frameCount ?? beats.length);
+    }
+  }
+  if (!meta) throw new Error('Backend stream ended without content');
+  return { id: meta.id, title: meta.title, description: meta.description, beats };
+}
+
+export async function generateLesson(opts: GenerateOptions): Promise<Lesson> {
+  const steps: LessonStep[] = [];
+  let meta: MetaEvent | null = null;
+  for await (const event of streamEvents('/narrate/lesson', requestBody(opts))) {
+    if (event.type === 'meta') {
+      meta = requireMeta(event, 'lesson');
+    } else if (event.type === 'step') {
+      steps.push(event.step as LessonStep);
+      opts.onProgress?.(steps.length, meta?.frameCount ?? steps.length);
+    }
+  }
+  if (!meta) throw new Error('Backend stream ended without content');
+  return {
+    id: meta.id,
+    track: meta.track ?? 'beginner',
+    title: meta.title,
+    audience: meta.audience ?? '',
+    description: meta.description,
+    steps
+  };
+}

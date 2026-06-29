@@ -17,12 +17,21 @@ export class LessonsPanel {
 
     private readonly engine: LessonEngine;
     private readonly onSelect?: () => void;
+    private readonly onGenerate?: (report: (done: number, total: number) => void) => Promise<void>;
     private track: LessonTrack = 'beginner';
     private unsubscribe: () => void;
+    private generateBtn?: HTMLButtonElement;
+    private generateStatus?: HTMLParagraphElement;
 
-    constructor(parent: HTMLElement, engine: LessonEngine, onSelect?: () => void) {
+    constructor(
+        parent: HTMLElement,
+        engine: LessonEngine,
+        onSelect?: () => void,
+        onGenerate?: (report: (done: number, total: number) => void) => Promise<void>
+    ) {
         this.engine = engine;
         this.onSelect = onSelect;
+        this.onGenerate = onGenerate;
 
         this.el = document.createElement('div');
         this.el.id = 'lessons';
@@ -47,6 +56,22 @@ export class LessonsPanel {
             filter.appendChild(btn);
         }
         this.el.appendChild(filter);
+
+        if (this.onGenerate) {
+            const row = document.createElement('div');
+            row.className = 'lsn-actions';
+            this.generateBtn = document.createElement('button');
+            this.generateBtn.type = 'button';
+            this.generateBtn.className = 'lsn-btn';
+            this.generateBtn.textContent = 'Lesson from my cube (Qwen)';
+            this.generateBtn.addEventListener('click', () => this.runGenerate());
+            row.appendChild(this.generateBtn);
+            this.el.appendChild(row);
+
+            this.generateStatus = document.createElement('p');
+            this.generateStatus.className = 'lsn-hint';
+            this.el.appendChild(this.generateStatus);
+        }
 
         this.listEl = document.createElement('div');
         this.listEl.className = 'lsn-list';
@@ -198,6 +223,29 @@ export class LessonsPanel {
         );
         nav.appendChild(this.button('Reset lesson', () => this.engine.resetLesson()));
         this.detailEl.appendChild(nav);
+    }
+
+    private async runGenerate(): Promise<void> {
+        if (!this.onGenerate || !this.generateBtn) return;
+        this.generateBtn.disabled = true;
+        this.generateBtn.textContent = 'Generating…';
+        if (this.generateStatus) this.generateStatus.textContent = 'Asking Qwen to build a lesson…';
+        try {
+            await this.onGenerate((done, total) => {
+                if (this.generateStatus) {
+                    this.generateStatus.textContent = `Generating… step ${done} of ${total}`;
+                }
+            });
+            if (this.generateStatus) this.generateStatus.textContent = 'Lesson ready below.';
+            this.renderList();
+        } catch (err) {
+            if (this.generateStatus) {
+                this.generateStatus.textContent = `Couldn't generate: ${(err as Error).message}`;
+            }
+        } finally {
+            this.generateBtn.disabled = false;
+            this.generateBtn.textContent = 'Lesson from my cube (Qwen)';
+        }
     }
 
     private button(label: string, onClick: () => void, disabled = false): HTMLButtonElement {

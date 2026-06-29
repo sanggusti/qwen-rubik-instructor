@@ -127,8 +127,61 @@ describe('WalkthroughEngine', () => {
     vi.advanceTimersByTime(10000);
     const s = latest(engine);
     expect(s).toMatchObject({ playing: false, finished: true, beatIndex: 2 });
-    // Each beat's moves applied exactly once, in order.
-    expect(applied).toEqual([['R', 'U'], ["R'"]]);
+    // Moves now play one at a time (followable), in order.
+    expect(applied).toEqual([['R'], ['U'], ["R'"]]);
+  });
+
+  it('exposes the current move while stepping a beat', () => {
+    vi.useFakeTimers();
+    const { api } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    engine.select('w1');
+    engine.play();
+    vi.advanceTimersByTime(950); // past beat 1 emphasis hold, into its first move
+    const s = active(engine);
+    expect(s).toMatchObject({ beatIndex: 1, moveIndex: 0, moveCount: 2, currentMove: 'R' });
+  });
+
+  it("pulses the beat's highlight then restores full colour before moving", () => {
+    vi.useFakeTimers();
+    const { api } = fakeApi();
+    const hl = fakeHighlight();
+    const engine = new WalkthroughEngine(api, WTS, hl.fn);
+    engine.select('w1');
+    engine.play();
+    vi.advanceTimersByTime(300); // during emphasis hold of beat 1 (highlight 'edge')
+    expect(last(hl.calls)).toBe('edge');
+    vi.advanceTimersByTime(900); // emphasis elapsed -> restored before turning
+    expect(last(hl.calls)).toBeNull();
+  });
+
+  it('keeps the spotlight for a highlighted beat with no moves', () => {
+    vi.useFakeTimers();
+    const { api } = fakeApi();
+    const hl = fakeHighlight();
+    const wt: Walkthrough[] = [{
+      id: 'wa', title: 'WA', description: 'd',
+      beats: [{ text: 'a' }, { text: 'edges', highlight: 'edge', dwellMs: 3000 }]
+    }];
+    const engine = new WalkthroughEngine(api, wt, hl.fn);
+    engine.select('wa');
+    engine.play();
+    vi.advanceTimersByTime(1500); // past the emphasis window, still within the beat
+    expect(last(hl.calls)).toBe('edge'); // retained, not restored to full colour
+  });
+
+  it("plays a 'fast' beat's moves in one burst", () => {
+    vi.useFakeTimers();
+    const { api, applied } = fakeApi();
+    const fast: Walkthrough[] = [{
+      id: 'wf', title: 'WF', description: 'd',
+      beats: [{ text: 'a' }, { text: 'b', moves: ['R', 'U', "R'"], pace: 'fast' }]
+    }];
+    const engine = new WalkthroughEngine(api, fast, fakeHighlight().fn);
+    engine.select('wf');
+    engine.play();
+    vi.advanceTimersByTime(5000);
+    expect(applied).toContainEqual(['R', 'U', "R'"]); // applied together, not split
   });
 
   it('pause stops auto-advance and keeps the current beat', () => {
@@ -143,5 +196,31 @@ describe('WalkthroughEngine', () => {
     expect(active(engine).playing).toBe(false);
     vi.advanceTimersByTime(10000);
     expect(active(engine).beatIndex).toBe(idx); // did not advance after pause
+  });
+});
+
+describe('WalkthroughEngine.loadGenerated', () => {
+  it('adds a runtime walkthrough and selects it', () => {
+    const { api } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    const gen: Walkthrough = {
+      id: 'gen-1', title: 'Generated', description: 'd',
+      beats: [{ text: 'g0' }, { text: 'g1', moves: ['U'] }]
+    };
+    engine.loadGenerated(gen);
+    const s = active(engine);
+    expect(s.walkthrough.id).toBe('gen-1');
+    expect(s.beatIndex).toBe(0);
+    expect(engine.getWalkthroughs().some((w) => w.id === 'gen-1')).toBe(true);
+  });
+
+  it('replaces a prior generated walkthrough with the same id', () => {
+    const { api } = fakeApi();
+    const engine = new WalkthroughEngine(api, WTS, fakeHighlight().fn);
+    engine.loadGenerated({ id: 'gen-1', title: 'A', description: 'd', beats: [{ text: 'a' }] });
+    engine.loadGenerated({ id: 'gen-1', title: 'B', description: 'd', beats: [{ text: 'b' }] });
+    const matches = engine.getWalkthroughs().filter((w) => w.id === 'gen-1');
+    expect(matches).toHaveLength(1);
+    expect(matches[0].title).toBe('B');
   });
 });

@@ -3,7 +3,8 @@
 // is set via textContent to keep it safe from injection.
 
 import type { PracticeEngine, PracticeState } from '../education/practice_engine';
-import type { DrillCategory } from '../education/practice_types';
+import type { DrillCategory, DrillDifficulty } from '../education/practice_types';
+import { selectDrills } from '../education/drill_generator';
 
 const CATEGORIES: { id: DrillCategory | 'all'; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -12,15 +13,52 @@ const CATEGORIES: { id: DrillCategory | 'all'; label: string }[] = [
     { id: 'solve', label: 'Solves' }
 ];
 
+const DIFFICULTIES: { id: DrillDifficulty | 'all'; label: string }[] = [
+    { id: 'all', label: 'Any' },
+    { id: 'easy', label: 'Easy' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'hard', label: 'Hard' }
+];
+
+// Personal-best solve times, persisted per drill. Powers "solve faster" practice.
+function bestKey(id: string): string {
+    return `rubik-best:${id}`;
+}
+function getBest(id: string): number | null {
+    try {
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(bestKey(id)) : null;
+        return raw ? Number(raw) : null;
+    } catch {
+        return null;
+    }
+}
+function recordBest(id: string, ms: number): void {
+    const best = getBest(id);
+    if (best != null && best <= ms) return;
+    try {
+        localStorage?.setItem(bestKey(id), String(ms));
+    } catch {
+        /* ignore */
+    }
+}
+function fmtTime(ms: number): string {
+    return `${(ms / 1000).toFixed(1)}s`;
+}
+
 export class PracticePanel {
     readonly el: HTMLDivElement;
     private listEl!: HTMLDivElement;
     private detailEl!: HTMLDivElement;
     private filterButtons = new Map<DrillCategory | 'all', HTMLButtonElement>();
+    private difficultyButtons = new Map<DrillDifficulty | 'all', HTMLButtonElement>();
+    private readonly timerEl: HTMLDivElement;
+    private readonly tickHandle: ReturnType<typeof setInterval>;
+    private lastState: PracticeState = { drill: null };
 
     private readonly engine: PracticeEngine;
     private readonly onSelect?: () => void;
     private category: DrillCategory | 'all' = 'all';
+    private difficulty: DrillDifficulty | 'all' = 'all';
     private unsubscribe: () => void;
 
     constructor(parent: HTMLElement, engine: PracticeEngine, onSelect?: () => void) {
@@ -51,6 +89,19 @@ export class PracticePanel {
         }
         this.el.appendChild(filter);
 
+        const diffFilter = document.createElement('div');
+        diffFilter.className = 'prc-filter';
+        for (const d of DIFFICULTIES) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'prc-cat';
+            btn.textContent = d.label;
+            btn.addEventListener('click', () => this.setDifficulty(d.id));
+            this.difficultyButtons.set(d.id, btn);
+            diffFilter.appendChild(btn);
+        }
+        this.el.appendChild(diffFilter);
+
         this.listEl = document.createElement('div');
         this.listEl.className = 'prc-list';
         this.el.appendChild(this.listEl);
@@ -59,13 +110,19 @@ export class PracticePanel {
         this.detailEl.className = 'prc-detail';
         this.el.appendChild(this.detailEl);
 
+        this.timerEl = document.createElement('div');
+        this.timerEl.className = 'prc-timer';
+
         this.renderFilterButtons();
         this.renderList();
         this.unsubscribe = engine.subscribe((state) => this.renderDetail(state));
+        // Live solve clock — updates the timer text without re-rendering the panel.
+        this.tickHandle = setInterval(() => this.tickTimer(), 100);
     }
 
     dispose(): void {
         this.unsubscribe();
+        clearInterval(this.tickHandle);
     }
 
     private setCategory(category: DrillCategory | 'all'): void {
@@ -74,17 +131,44 @@ export class PracticePanel {
         this.renderList();
     }
 
+    private setDifficulty(difficulty: DrillDifficulty | 'all'): void {
+        this.difficulty = difficulty;
+        this.renderFilterButtons();
+        this.renderList();
+    }
+
     private renderFilterButtons(): void {
         for (const [id, btn] of this.filterButtons) {
             btn.classList.toggle('is-active', id === this.category);
+        }
+        for (const [id, btn] of this.difficultyButtons) {
+            btn.classList.toggle('is-active', id === this.difficulty);
+        }
+    }
+
+    private tickTimer(): void {
+        const s = this.lastState;
+        if (s.drill === null) {
+            this.timerEl.textContent = '';
+            return;
+        }
+        const best = getBest(s.drill.id);
+        const bestStr = best != null ? ` · best ${fmtTime(best)}` : '';
+        if (s.completed && s.solveMs != null) {
+            this.timerEl.textContent = `Time ${fmtTime(s.solveMs)}${bestStr}`;
+        } else if (s.startedAt != null) {
+            this.timerEl.textContent = `Time ${fmtTime(Date.now() - s.startedAt)}${bestStr}`;
+        } else {
+            this.timerEl.textContent = `Time —${bestStr}`;
         }
     }
 
     private renderList(): void {
         this.listEl.replaceChildren();
-        const drills = this.engine.getDrills().filter(
-            (d) => this.category === 'all' || d.category === this.category
-        );
+        const drills = selectDrills(this.engine.getDrills(), {
+            category: this.category === 'all' ? undefined : this.category,
+            difficulty: this.difficulty === 'all' ? undefined : this.difficulty
+        });
         const active = this.engine.getCurrentDrill();
         for (const drill of drills) {
             const btn = document.createElement('button');
@@ -101,6 +185,7 @@ export class PracticePanel {
     }
 
     private renderDetail(state: PracticeState): void {
+        this.lastState = state;
         this.detailEl.replaceChildren();
         // Keep the list selection highlight in sync with the engine.
         this.renderList();
@@ -111,6 +196,11 @@ export class PracticePanel {
             hint.textContent = 'Pick a drill above to begin.';
             this.detailEl.appendChild(hint);
             return;
+        }
+
+        // Persist a new personal best when a drill completes.
+        if (state.completed && state.solveMs != null) {
+            recordBest(state.drill.id, state.solveMs);
         }
 
         const { drill, round, roundCount, score, completed, evaluation } = state;
@@ -134,6 +224,10 @@ export class PracticePanel {
         counter.className = 'prc-counter';
         counter.textContent = `Round ${Math.min(round + 1, roundCount)} of ${roundCount} \u00b7 Score ${score}`;
         this.detailEl.appendChild(counter);
+
+        // Solve clock + personal best (kept up to date by tickTimer).
+        this.detailEl.appendChild(this.timerEl);
+        this.tickTimer();
 
         const feedback = document.createElement('div');
         feedback.className = `prc-feedback ${completed ? 'correct' : evaluation.status}`;

@@ -9,6 +9,7 @@ export class StageCaption {
   private readonly el: HTMLDivElement;
   private readonly titleEl: HTMLDivElement;
   private readonly bodyEl: HTMLParagraphElement;
+  private readonly moveEl: HTMLDivElement;
 
   private owner: string | null = null;
   private lastText = '';
@@ -38,7 +39,24 @@ export class StageCaption {
     this.bodyEl.className = 'stage-body';
     this.el.appendChild(this.bodyEl);
 
+    // Small "now playing" move badge, shown only while a walkthrough is stepping.
+    this.moveEl = document.createElement('div');
+    this.moveEl.className = 'stage-move';
+    this.moveEl.hidden = true;
+    this.el.appendChild(this.moveEl);
+
     host.appendChild(this.el);
+  }
+
+  // Show/hide the current-move badge (e.g. "R · 3/12"). Pass null to hide.
+  setMove(label: string | null): void {
+    if (label) {
+      this.moveEl.textContent = label;
+      this.moveEl.hidden = false;
+    } else {
+      this.moveEl.textContent = '';
+      this.moveEl.hidden = true;
+    }
   }
 
   set(owner: string, title: string, text: string, stream = false): void {
@@ -58,6 +76,7 @@ export class StageCaption {
     this.owner = null;
     this.lastText = '';
     this.stopStream();
+    this.setMove(null);
     this.el.classList.remove('is-open');
     this.host.classList.remove('is-experience');
   }

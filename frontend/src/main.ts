@@ -15,8 +15,8 @@ import { CubeView } from './scene/cube/cube_view';
 import { ExplorePanel } from './ui/explore_panel';
 import { WalkthroughEngine } from './education/walkthrough';
 import { WALKTHROUGHS } from './education/walkthroughs';
-import { generateWalkthrough, generateLesson } from './education/remote_content';
-import { loadProfile, setLevel, appendHistory, LEVELS, type Level } from './education/profile';
+import { generateWalkthrough, generateLesson, askQwen } from './education/remote_content';
+import { loadProfile, setLevel, appendHistory, buildMemoryDigest, LEVELS, type Level } from './education/profile';
 import { Hud } from './ui/hud';
 import { StageCaption } from './ui/stage_caption';
 import { applyMove, solvedState, isSolved, cloneState, type State } from './core/state';
@@ -201,7 +201,7 @@ function boot(container: HTMLElement): void {
       isSolved: api.isSolved,
       onMove: api.onMove
     };
-    practiceEngine = new PracticeEngine(practiceApi, PRACTICE_DRILLS);
+    practiceEngine = new PracticeEngine(practiceApi, PRACTICE_DRILLS, () => Date.now(), storage);
 
     const defaultMoveMs = animator.durationMs;
     walkthroughEngine = new WalkthroughEngine(
@@ -235,8 +235,9 @@ function boot(container: HTMLElement): void {
       container,
       lessonEngine,
       () => {
+        // Keep the Lessons panel open: it now collapses to the active step's
+        // controls (Next / Mark complete), so closing it would hide them.
         closeOthers('lesson');
-        hud.close();
       },
       async (report) => {
         closeOthers('lesson');
@@ -244,7 +245,7 @@ function boot(container: HTMLElement): void {
           state: api.getState(),
           level: profile.level,
           method: profile.method,
-          history: profile.history,
+          memory: buildMemoryDigest(loadProfile()),
           onProgress: report
         });
         lessonEngine?.loadGenerated(lesson);
@@ -252,8 +253,10 @@ function boot(container: HTMLElement): void {
           kind: 'lesson', method: profile.method,
           stages: lesson.steps.length, at: new Date().toISOString()
         });
-        hud.close();
-      }
+        // Leave the panel open so the generated lesson's controls are visible.
+      },
+      (req) =>
+        askQwen({ ...req, level: profile.level, memory: buildMemoryDigest(loadProfile()) })
     );
     const practicePanel = new PracticePanel(container, practiceEngine, () => {
       closeOthers('practice');
@@ -268,7 +271,7 @@ function boot(container: HTMLElement): void {
           state: api.getState(),
           level: profile.level,
           method: profile.method,
-          history: profile.history,
+          memory: buildMemoryDigest(loadProfile()),
           onProgress: report
         });
         walkthroughEngine?.loadGenerated(wt);

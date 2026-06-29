@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from config import settings
 from narrative import planner
-from narrative.llm_narrator import narrate_plan
+from narrative.llm_narrator import answer_question, narrate_plan
 from narrative.merge import beat_from, step_from
 from narrative.schema import VisualPlan
 from pipeline.cube.facelet import State, is_well_formed
@@ -32,6 +32,24 @@ app.add_middleware(
 )
 
 
+class StruggleStage(BaseModel):
+    stage: str
+    label: Optional[str] = None
+    mistakes: int = 0
+
+
+class MemoryDigest(BaseModel):
+    # A compact, client-built summary of how the learner is doing, so Qwen can
+    # remember and adapt (see narrative.llm_narrator). Built by the frontend's
+    # profile.buildMemoryDigest.
+    level: Optional[str] = None
+    method: Optional[str] = None
+    sessions: int = 0
+    lastKind: Optional[str] = None
+    struggles: List[StruggleStage] = []
+    mastered: List[str] = []
+
+
 class NarrateRequest(BaseModel):
     # Provide a topic for a catalog plan, or a cube state for a full-solve plan.
     topic: Optional[str] = None
@@ -39,7 +57,7 @@ class NarrateRequest(BaseModel):
     # Learner persona + session memory (client-side, sent each request).
     level: Optional[Literal["newbie", "intermediate", "advanced"]] = None
     method: Optional[Literal["lbl", "cfop"]] = None
-    history: Optional[List[dict]] = None
+    memory: Optional[MemoryDigest] = None
 
 
 def _resolve_method(req: "NarrateRequest") -> str:
@@ -81,7 +99,7 @@ def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj)}\n\n"
 
 
-def _stream(plan: VisualPlan, level: str, history_count: int) -> Iterator[str]:
+def _stream(plan: VisualPlan, level: str, memory: Optional[dict]) -> Iterator[str]:
     yield _sse({
         "type": "meta",
         "kind": plan.kind,
@@ -93,7 +111,7 @@ def _stream(plan: VisualPlan, level: str, history_count: int) -> Iterator[str]:
         "frameCount": len(plan.frames),
     })
     for index, (frame, narration, used_fallback) in enumerate(
-        narrate_plan(plan, level=level, history_count=history_count)
+        narrate_plan(plan, level=level, memory=memory)
     ):
         if plan.kind == "walkthrough":
             item = beat_from(frame, narration)
@@ -109,9 +127,9 @@ def _stream(plan: VisualPlan, level: str, history_count: int) -> Iterator[str]:
 
 def _stream_response(plan: VisualPlan, req: NarrateRequest) -> StreamingResponse:
     level = req.level or "newbie"
-    history_count = len(req.history or [])
+    memory = req.memory.model_dump() if req.memory else None
     return StreamingResponse(
-        _stream(plan, level, history_count),
+        _stream(plan, level, memory),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -125,3 +143,28 @@ def narrate_walkthrough(req: NarrateRequest) -> StreamingResponse:
 @app.post("/narrate/lesson")
 def narrate_lesson(req: NarrateRequest) -> StreamingResponse:
     return _stream_response(_build_plan("lesson", req), req)
+
+
+class AskRequest(BaseModel):
+    # A free-form question the learner asks mid-lesson. `moves` are the moves in
+    # play on the current step, used to ground the answer (no invented moves).
+    question: str
+    stage: Optional[str] = None
+    moves: Optional[List[str]] = None
+    level: Optional[Literal["newbie", "intermediate", "advanced"]] = None
+    memory: Optional[MemoryDigest] = None
+
+
+@app.post("/ask")
+def ask(req: AskRequest) -> dict:
+    question = (req.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+    text, used_fallback = answer_question(
+        question,
+        stage=req.stage or "",
+        moves=req.moves or [],
+        level=req.level or "newbie",
+        memory=req.memory.model_dump() if req.memory else None,
+    )
+    return {"text": text, "fallback": used_fallback}

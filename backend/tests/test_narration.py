@@ -117,6 +117,57 @@ def test_falls_back_on_exception(monkeypatch):
     assert used_fallback and narration.text
 
 
+# --- memory digest reaches the prompt ---
+
+class _Capture:
+    """Stub _complete that records the user message of each call."""
+
+    def __init__(self):
+        self.user_messages = []
+
+    def __call__(self, client, model, messages):
+        self.user_messages.append(messages[-1]["content"])
+        return json.dumps({"text": "Keep going, you've got this."})
+
+
+def test_memory_digest_personalises_first_frame(monkeypatch):
+    cap = _Capture()
+    monkeypatch.setattr(llm_narrator, "_complete", cap)
+    plan = build_topic_lesson("sune")
+    memory = {
+        "sessions": 3,
+        "struggles": [{"stage": "middle-layer", "label": "Middle layer", "mistakes": 6}],
+        "mastered": ["Cross"],
+    }
+    list(llm_narrator.narrate_plan(plan, client=None, model="x", memory=memory))
+    first = cap.user_messages[0]
+    assert "3 recent session" in first
+    assert "Middle layer" in first  # welcome-back names the struggle
+    assert "Cross" in first  # ...and what they've mastered
+
+
+def test_stage_struggle_note_targets_matching_stage(monkeypatch):
+    cap = _Capture()
+    monkeypatch.setattr(llm_narrator, "_complete", cap)
+    s = solved_state()
+    apply_moves(s, "R U F D L B".split())
+    plan = build_solve_walkthrough(s)
+    stages = [fr.stage for fr in plan.frames]
+    target = next(st for st in stages if st != "intro")
+    memory = {"sessions": 1, "struggles": [{"stage": target, "label": target, "mistakes": 4}]}
+    msgs = list(llm_narrator.narrate_plan(plan, client=None, model="x", memory=memory))
+    idx = stages.index(target)
+    assert "struggled with this stage" in cap.user_messages[idx]
+
+
+def test_no_memory_means_no_continuity(monkeypatch):
+    cap = _Capture()
+    monkeypatch.setattr(llm_narrator, "_complete", cap)
+    plan = build_topic_lesson("sune")
+    list(llm_narrator.narrate_plan(plan, client=None, model="x", memory=None))
+    assert "recent session" not in cap.user_messages[0]
+
+
 # --- merge ---
 
 def test_beat_from_keeps_skeleton_moves():

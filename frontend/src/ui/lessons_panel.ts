@@ -3,14 +3,22 @@
 
 import type { LessonEngine, EngineState } from '../education/lesson_engine';
 import type { LessonTrack } from '../education/lesson_types';
+import { loadProfile } from '../education/profile';
 
 const TRACKS: { id: LessonTrack; label: string }[] = [
     { id: 'beginner', label: 'Beginner' },
     { id: 'time-improvement', label: 'Improve time' }
 ];
 
+export interface AskContext {
+    question: string;
+    stage?: string;
+    moves?: string[];
+}
+
 export class LessonsPanel {
     readonly el: HTMLDivElement;
+    private filterEl!: HTMLDivElement;
     private listEl!: HTMLDivElement;
     private detailEl!: HTMLDivElement;
     private trackButtons = new Map<LessonTrack, HTMLButtonElement>();
@@ -18,20 +26,30 @@ export class LessonsPanel {
     private readonly engine: LessonEngine;
     private readonly onSelect?: () => void;
     private readonly onGenerate?: (report: (done: number, total: number) => void) => Promise<void>;
+    private readonly onAsk?: (req: AskContext) => Promise<string>;
     private track: LessonTrack = 'beginner';
     private unsubscribe: () => void;
+    private generateRow?: HTMLDivElement;
     private generateBtn?: HTMLButtonElement;
     private generateStatus?: HTMLParagraphElement;
+    // The persistent "Ask Qwen" box, kept outside the re-rendered detail so a
+    // typed question survives the learner's moves. Context comes from the engine.
+    private askWrap?: HTMLDivElement;
+    private askInput?: HTMLInputElement;
+    private askAnswer?: HTMLParagraphElement;
+    private askContext: AskContext | null = null;
 
     constructor(
         parent: HTMLElement,
         engine: LessonEngine,
         onSelect?: () => void,
-        onGenerate?: (report: (done: number, total: number) => void) => Promise<void>
+        onGenerate?: (report: (done: number, total: number) => void) => Promise<void>,
+        onAsk?: (req: AskContext) => Promise<string>
     ) {
         this.engine = engine;
         this.onSelect = onSelect;
         this.onGenerate = onGenerate;
+        this.onAsk = onAsk;
 
         this.el = document.createElement('div');
         this.el.id = 'lessons';
@@ -56,6 +74,7 @@ export class LessonsPanel {
             filter.appendChild(btn);
         }
         this.el.appendChild(filter);
+        this.filterEl = filter;
 
         if (this.onGenerate) {
             const row = document.createElement('div');
@@ -67,6 +86,7 @@ export class LessonsPanel {
             this.generateBtn.addEventListener('click', () => this.runGenerate());
             row.appendChild(this.generateBtn);
             this.el.appendChild(row);
+            this.generateRow = row;
 
             this.generateStatus = document.createElement('p');
             this.generateStatus.className = 'lsn-hint';
@@ -80,6 +100,8 @@ export class LessonsPanel {
         this.detailEl = document.createElement('div');
         this.detailEl.className = 'lsn-detail';
         this.el.appendChild(this.detailEl);
+
+        if (this.onAsk) this.buildAskBox();
 
         this.renderTrackButtons();
         this.renderList();
@@ -106,18 +128,47 @@ export class LessonsPanel {
         this.listEl.replaceChildren();
         const lessons = this.engine.getLessons(this.track);
         const active = this.engine.getCurrentLesson();
+        // Beginner lessons unlock in order: a stage opens once the prior one has
+        // been completed at least once, so the path is followed top to bottom.
+        const performance = loadProfile().performance;
+        const gated = this.track === 'beginner';
+        let prevDone = true; // the first lesson is always open
         for (const lesson of lessons) {
+            // Generated (Qwen) lessons aren't part of the gated path — never lock.
+            const locked = gated && !prevDone && !lesson.generated;
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'lsn-item';
             if (active && active.id === lesson.id) btn.classList.add('is-active');
-            btn.textContent = lesson.title;
-            btn.addEventListener('click', () => {
-                this.engine.selectLesson(lesson.id);
-                this.onSelect?.();
-            });
+            if (locked) {
+                btn.classList.add('is-locked');
+                btn.disabled = true;
+                btn.title = 'Complete the previous lesson to unlock this one.';
+                btn.textContent = `🔒 ${lesson.title}`;
+            } else {
+                btn.textContent = lesson.title;
+                btn.addEventListener('click', () => {
+                    this.engine.selectLesson(lesson.id);
+                    this.onSelect?.();
+                });
+            }
             this.listEl.appendChild(btn);
+            const attempted = (performance[lesson.stage ?? lesson.id]?.attempts ?? 0) > 0;
+            prevDone = attempted;
         }
+    }
+
+    // While a lesson is active, collapse the browse UI (track filter, generate
+    // button, list) so the pinned step detail and its controls sit at the top of
+    // the panel — no scrolling past the list to find Next.
+    private setBrowseVisible(visible: boolean): void {
+        // Inline display beats the elements' CSS `display` rules (which would
+        // otherwise override the `hidden` attribute).
+        const display = visible ? '' : 'none';
+        this.filterEl.style.display = display;
+        if (this.generateRow) this.generateRow.style.display = display;
+        if (this.generateStatus) this.generateStatus.style.display = display;
+        this.listEl.style.display = display;
     }
 
     private renderDetail(state: EngineState): void {
@@ -126,6 +177,9 @@ export class LessonsPanel {
         this.renderList();
 
         if (state.lesson === null) {
+            this.setBrowseVisible(true);
+            this.askContext = null;
+            if (this.askWrap) this.askWrap.hidden = true;
             const hint = document.createElement('p');
             hint.className = 'lsn-hint';
             hint.textContent = 'Pick a lesson above to begin.';
@@ -133,7 +187,20 @@ export class LessonsPanel {
             return;
         }
 
+        this.setBrowseVisible(false);
+        this.detailEl.appendChild(
+            this.button('◀ Back to lessons', () => this.engine.closeLesson())
+        );
+
         const { lesson, step, stepIndex, stepCount, stepCompleted, lessonCompleted } = state;
+
+        // Update the persistent ask box's grounding context for this step.
+        this.askContext = {
+            question: '',
+            stage: lesson.stage ?? lesson.id,
+            moves: step.expectedMoves ?? (step.validator.type === 'moveSequence' ? step.validator.moves : [])
+        };
+        if (this.askWrap) this.askWrap.hidden = false;
 
         const title = document.createElement('h4');
         title.className = 'lsn-title';
@@ -215,6 +282,23 @@ export class LessonsPanel {
         }
         this.detailEl.appendChild(actions);
 
+        // Rescue: reveal just the single next move without playing the sequence.
+        // The revealed text persists until the learner's next move re-renders.
+        if (step.validator.type === 'moveSequence' && !stepCompleted) {
+            const rescue = document.createElement('div');
+            rescue.className = 'lsn-actions';
+            const revealed = document.createElement('span');
+            revealed.className = 'lsn-hint';
+            rescue.appendChild(
+                this.button('Show next move', () => {
+                    const move = this.engine.nextExpectedMove();
+                    revealed.textContent = move ? `Next move: ${move}` : 'You’re on the last move.';
+                })
+            );
+            rescue.appendChild(revealed);
+            this.detailEl.appendChild(rescue);
+        }
+
         const nav = document.createElement('div');
         nav.className = 'lsn-actions';
         nav.appendChild(this.button('Previous', () => this.engine.previous(), stepIndex === 0));
@@ -245,6 +329,59 @@ export class LessonsPanel {
         } finally {
             this.generateBtn.disabled = false;
             this.generateBtn.textContent = 'Lesson from my cube (Qwen)';
+        }
+    }
+
+    // The "Ask Qwen" box: a free-form question plus an "Explain differently"
+    // shortcut (the rescue funnel from coaching). Lives outside detailEl so it
+    // isn't wiped when the learner's moves re-render the step.
+    private buildAskBox(): void {
+        const wrap = document.createElement('div');
+        wrap.className = 'lsn-ask';
+        wrap.hidden = true;
+
+        const label = document.createElement('p');
+        label.className = 'lsn-hint';
+        label.textContent = 'Stuck? Ask Qwen about this step.';
+        wrap.appendChild(label);
+
+        const row = document.createElement('div');
+        row.className = 'lsn-actions';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'lsn-ask-input';
+        input.placeholder = 'e.g. why this move?';
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.runAsk(input.value);
+        });
+        row.appendChild(input);
+        row.appendChild(this.button('Ask', () => this.runAsk(input.value)));
+        row.appendChild(
+            this.button('Explain differently', () =>
+                this.runAsk('I’m stuck on this step. Can you explain it a different way?')
+            )
+        );
+        wrap.appendChild(row);
+
+        const answer = document.createElement('p');
+        answer.className = 'lsn-ask-answer';
+        wrap.appendChild(answer);
+
+        this.el.appendChild(wrap);
+        this.askWrap = wrap;
+        this.askInput = input;
+        this.askAnswer = answer;
+    }
+
+    private async runAsk(question: string): Promise<void> {
+        const q = question.trim();
+        if (!q || !this.onAsk || !this.askContext || !this.askAnswer) return;
+        this.askAnswer.textContent = 'Asking Qwen…';
+        try {
+            this.askAnswer.textContent = await this.onAsk({ ...this.askContext, question: q });
+            if (this.askInput) this.askInput.value = '';
+        } catch (err) {
+            this.askAnswer.textContent = `Couldn't ask: ${(err as Error).message}`;
         }
     }
 

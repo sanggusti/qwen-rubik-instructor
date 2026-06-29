@@ -19,7 +19,7 @@ from rubik.cube import Cube
 from rubik.solve import Solver
 
 from pipeline.cube.facelet import State
-from pipeline.cube.notation import cleanup, normalize
+from pipeline.cube.notation import cleanup, normalize, optimize_solution
 from pipeline.solver import SolveStage
 
 # Library token -> our notation (direction inverted; derived empirically).
@@ -85,4 +85,9 @@ def solve(state: State) -> List[SolveStage]:
                 focus=f"{highlight} pieces",
             )
         )
+    # Globally optimize across stages: the library leans on whole-cube rotations
+    # and slices that no learner would make. Eliminating them (and cleaning up
+    # across stage boundaries) keeps the solve correct but human-followable.
+    for stage, moves in zip(stages, optimize_solution([s.moves for s in stages])):
+        stage.moves = moves
     return stages

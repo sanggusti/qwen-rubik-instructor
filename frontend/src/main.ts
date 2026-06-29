@@ -235,8 +235,9 @@ function boot(container: HTMLElement): void {
       container,
       lessonEngine,
       () => {
+        // Keep the Lessons panel open: it now collapses to the active step's
+        // controls (Next / Mark complete), so closing it would hide them.
         closeOthers('lesson');
-        hud.close();
       },
       async (report) => {
         closeOthers('lesson');
@@ -252,7 +253,7 @@ function boot(container: HTMLElement): void {
           kind: 'lesson', method: profile.method,
           stages: lesson.steps.length, at: new Date().toISOString()
         });
-        hud.close();
+        // Leave the panel open so the generated lesson's controls are visible.
       },
       (req) =>
         askQwen({ ...req, level: profile.level, memory: buildMemoryDigest(loadProfile()) })

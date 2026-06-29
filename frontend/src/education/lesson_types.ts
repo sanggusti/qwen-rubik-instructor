@@ -25,6 +25,9 @@ export interface Lesson {
     // Solver stage this lesson maps onto (e.g. 'cross', 'middle-layer'). Lets
     // performance be keyed by stage so it aligns with generated solve frames.
     stage?: string;
+    // True for runtime (Qwen) lessons. They're not part of the gated beginner
+    // path, so the list never locks them.
+    generated?: boolean;
 }
 
 export interface LessonProgress {

@@ -6,9 +6,10 @@ single, real piece of work: taking the Qwen Rubik Instructor from a polished
 backend) into something a human can actually **learn to solve a cube with** —
 where the LLM remembers how you're doing and adapts.
 
-The work landed in five incremental phases on 2026-06-29. Every phase shipped
-with tests; the final state is backend 697 tests, frontend 162 tests, all green,
-plus a live model call confirming the end-to-end loop.
+The work landed in five incremental phases on 2026-06-29, followed by two
+focused fixes (Parts 4–5) on the same headline feature. Every phase shipped with
+tests; the current state is backend 698 tests, frontend 162 tests, all green,
+plus live model calls and in-browser checks confirming the end-to-end loop.
 
 ## The posts
 
@@ -26,6 +27,17 @@ plus a live model call confirming the end-to-end loop.
    A beginner couldn't actually learn to solve from the static catalog. How we
    authored a full layer-by-layer curriculum whose every algorithm is
    machine-verified, and a mid-lesson "ask Qwen" that can't hallucinate moves.
+
+4. **[De-bloating the solve: making a correct solver human-followable](./04-debloating-the-solve-human-followable-moves.md)**
+   The "Solve my cube" feature was provably correct and completely unfollowable —
+   246 moves and 32 whole-cube rotations for a 13-move scramble. Eliminating the
+   rotations by conjugation, verifying it against the engine, and being honest
+   about the half of the problem it didn't fix.
+
+5. **[The stuck lesson: the bug is rarely where the survey says](./05-the-stuck-lesson-reproduce-in-the-real-ui.md)**
+   "Lesson from my cube has no Next button." A code-survey confidently blamed a
+   backend crash that didn't exist; the real defect was three layout decisions and
+   a CSS-specificity quirk that only the browser could reveal.
 
 ## The throughline
 

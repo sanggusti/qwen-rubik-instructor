@@ -18,6 +18,7 @@ export interface AskContext {
 
 export class LessonsPanel {
     readonly el: HTMLDivElement;
+    private filterEl!: HTMLDivElement;
     private listEl!: HTMLDivElement;
     private detailEl!: HTMLDivElement;
     private trackButtons = new Map<LessonTrack, HTMLButtonElement>();
@@ -28,6 +29,7 @@ export class LessonsPanel {
     private readonly onAsk?: (req: AskContext) => Promise<string>;
     private track: LessonTrack = 'beginner';
     private unsubscribe: () => void;
+    private generateRow?: HTMLDivElement;
     private generateBtn?: HTMLButtonElement;
     private generateStatus?: HTMLParagraphElement;
     // The persistent "Ask Qwen" box, kept outside the re-rendered detail so a
@@ -72,6 +74,7 @@ export class LessonsPanel {
             filter.appendChild(btn);
         }
         this.el.appendChild(filter);
+        this.filterEl = filter;
 
         if (this.onGenerate) {
             const row = document.createElement('div');
@@ -83,6 +86,7 @@ export class LessonsPanel {
             this.generateBtn.addEventListener('click', () => this.runGenerate());
             row.appendChild(this.generateBtn);
             this.el.appendChild(row);
+            this.generateRow = row;
 
             this.generateStatus = document.createElement('p');
             this.generateStatus.className = 'lsn-hint';
@@ -130,7 +134,8 @@ export class LessonsPanel {
         const gated = this.track === 'beginner';
         let prevDone = true; // the first lesson is always open
         for (const lesson of lessons) {
-            const locked = gated && !prevDone;
+            // Generated (Qwen) lessons aren't part of the gated path — never lock.
+            const locked = gated && !prevDone && !lesson.generated;
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'lsn-item';
@@ -153,12 +158,26 @@ export class LessonsPanel {
         }
     }
 
+    // While a lesson is active, collapse the browse UI (track filter, generate
+    // button, list) so the pinned step detail and its controls sit at the top of
+    // the panel — no scrolling past the list to find Next.
+    private setBrowseVisible(visible: boolean): void {
+        // Inline display beats the elements' CSS `display` rules (which would
+        // otherwise override the `hidden` attribute).
+        const display = visible ? '' : 'none';
+        this.filterEl.style.display = display;
+        if (this.generateRow) this.generateRow.style.display = display;
+        if (this.generateStatus) this.generateStatus.style.display = display;
+        this.listEl.style.display = display;
+    }
+
     private renderDetail(state: EngineState): void {
         this.detailEl.replaceChildren();
         // Keep the list selection highlight in sync with the engine.
         this.renderList();
 
         if (state.lesson === null) {
+            this.setBrowseVisible(true);
             this.askContext = null;
             if (this.askWrap) this.askWrap.hidden = true;
             const hint = document.createElement('p');
@@ -167,6 +186,11 @@ export class LessonsPanel {
             this.detailEl.appendChild(hint);
             return;
         }
+
+        this.setBrowseVisible(false);
+        this.detailEl.appendChild(
+            this.button('◀ Back to lessons', () => this.engine.closeLesson())
+        );
 
         const { lesson, step, stepIndex, stepCount, stepCompleted, lessonCompleted } = state;
 

@@ -8,6 +8,8 @@ import type { State } from '../core/state';
 import type { Drill, EvaluationResult } from './practice_types';
 import { findDrill } from './drill_generator';
 import { evaluate } from './evaluation';
+import type { StorageLike } from './lesson_progress';
+import { recordStageResult } from './profile';
 
 // The slice of the cube API the engine needs. Keeping it narrow lets tests
 // supply a lightweight fake instead of the full window.rubikInstructor.
@@ -38,6 +40,7 @@ export type PracticeState =
 export class PracticeEngine {
     private readonly api: PracticeApi;
     private readonly drills: Drill[];
+    private readonly storage: StorageLike | null;
     private readonly emitter = new Emitter<PracticeState>();
     private readonly unsubscribeMove: () => void;
 
@@ -49,16 +52,24 @@ export class PracticeEngine {
     // Moves applied programmatically as drill setup must not count toward
     // evaluation; this counter swallows the matching onMove callbacks.
     private pendingSetupMoves = 0;
+    // Wrong moves this attempt, folded into the learner profile on completion.
+    private wrongCount = 0;
     // Solve timing (for "solve faster" practice). The clock starts on the first
     // counted move and stops when the drill completes.
     private readonly now: () => number;
     private startedAt: number | null = null;
     private solveMs: number | null = null;
 
-    constructor(api: PracticeApi, drills: Drill[], now: () => number = () => Date.now()) {
+    constructor(
+        api: PracticeApi,
+        drills: Drill[],
+        now: () => number = () => Date.now(),
+        storage: StorageLike | null = null
+    ) {
         this.api = api;
         this.drills = drills;
         this.now = now;
+        this.storage = storage;
         this.unsubscribeMove = api.onMove((move) => this.handleMove(move));
     }
 
@@ -135,6 +146,7 @@ export class PracticeEngine {
         if (resetTimer) {
             this.startedAt = null;
             this.solveMs = null;
+            this.wrongCount = 0;
         }
         if (this.current.setupMoves?.length) {
             this.pendingSetupMoves += this.current.setupMoves.length;
@@ -158,6 +170,7 @@ export class PracticeEngine {
         if (result.status === 'correct') {
             this.completeRound();
         } else {
+            if (result.status === 'wrong') this.wrongCount += 1;
             this.emit();
         }
     }
@@ -173,6 +186,15 @@ export class PracticeEngine {
             this.completed = true;
             this.solveMs = this.startedAt !== null ? this.now() - this.startedAt : null;
             this.moveHistory = [];
+            recordStageResult(
+                {
+                    stage: this.current.id,
+                    label: this.current.title,
+                    mistakes: this.wrongCount,
+                    durationMs: this.solveMs ?? undefined
+                },
+                this.storage
+            );
             this.emit();
         }
     }

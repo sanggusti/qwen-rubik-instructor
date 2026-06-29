@@ -121,27 +121,120 @@ def narrate_frame(
     return fallback_narration(plan, frame), True
 
 
+def welcome_line(memory: Optional[dict]) -> str:
+    """A first-frame welcome-back nod grounded in the learner's memory digest."""
+    if not memory:
+        return ""
+    sessions = memory.get("sessions") or 0
+    if not sessions:
+        return ""
+    parts = [f"This returning learner has done {sessions} recent session(s)."]
+    struggles = memory.get("struggles") or []
+    if struggles:
+        labels = ", ".join((s.get("label") or s.get("stage")) for s in struggles[:2])
+        parts.append(f"They've struggled most with: {labels}.")
+    mastered = memory.get("mastered") or []
+    if mastered:
+        parts.append(f"They've already got: {', '.join(mastered[:3])}.")
+    parts.append("A brief, specific welcome-back nod is welcome on this first frame only.")
+    return " ".join(parts)
+
+
+def stage_struggle_note(memory: Optional[dict], stage: str) -> str:
+    """If the learner has struggled with this exact stage, nudge a gentler tone."""
+    for s in (memory or {}).get("struggles") or []:
+        if s.get("stage") == stage:
+            return (
+                f"The learner has struggled with this stage before "
+                f"({s.get('mistakes')} past mistakes); be especially clear and reassuring."
+            )
+    return ""
+
+
+_ASK_SYSTEM = (
+    "You are a patient Rubik's cube tutor answering a learner's question while they "
+    "work on a live cube. Answer in ONE or TWO short, plain sentences. Only mention "
+    "cube moves that appear in the provided move list; never invent moves or claim a "
+    "state you weren't told. " + _JSON_INSTRUCTION
+)
+
+
+def build_ask_message(question: str, *, stage: str, moves: list[str], level: str, memory: Optional[dict]) -> str:
+    move_str = " ".join(moves) if moves else "(no specific moves in play)"
+    lines = [
+        f"The learner is a {level} solver working on stage: {stage or 'a solve'}.",
+        f"Moves in play right now: {move_str}.",
+    ]
+    welcome = welcome_line(memory)
+    if welcome:
+        lines.append(welcome)
+    lines.append(f"Their question: {question}")
+    lines.append("Answer briefly, only referencing the moves listed above.")
+    return "\n".join(lines)
+
+
+def answer_question(
+    question: str,
+    *,
+    stage: str = "",
+    moves: Optional[list[str]] = None,
+    level: str = "newbie",
+    memory: Optional[dict] = None,
+    client: Optional[OpenAI] = None,
+    model: Optional[str] = None,
+) -> Tuple[str, bool]:
+    """Answer a free-form learner question, grounded in the moves in play.
+
+    Returns (text, used_fallback). Reuses validate_narration so the answer can't
+    mention moves outside the provided list; re-prompts once, then falls back.
+    """
+    client = client or get_client()
+    model = model or settings.qwen_model
+    moves = moves or []
+    # Synthetic frame: validation only needs `moves` (the allow-list) and `stage`.
+    frame = VisualFrame(id="ask", stage=stage or "ask", moves=moves, focus="", expected="")
+    messages = [
+        {"role": "system", "content": _ASK_SYSTEM},
+        {"role": "user", "content": build_ask_message(
+            question, stage=stage, moves=moves, level=level, memory=memory)},
+    ]
+    for _ in range(2):
+        try:
+            content = _complete(client, model, messages)
+        except Exception:
+            break
+        ok, reason, narration = validate_narration(frame, content)
+        if ok and narration is not None:
+            return narration.text, False
+        messages.append({"role": "assistant", "content": content})
+        messages.append(
+            {"role": "user", "content": f"That was invalid ({reason}). Fix it and {_JSON_INSTRUCTION}"}
+        )
+    return ("Take it one move at a time, and use Show next move if you get stuck.", True)
+
+
 def narrate_plan(
     plan: VisualPlan,
     *,
     client: Optional[OpenAI] = None,
     model: Optional[str] = None,
     level: str = "newbie",
-    history_count: int = 0,
+    memory: Optional[dict] = None,
 ) -> Iterator[Tuple[VisualFrame, FrameNarration, bool]]:
     """Yield (frame, narration, used_fallback) for each frame, in order."""
     client = client or get_client()
     model = model or settings.qwen_model
     tone = pick_tone(plan.id)
-    continuity = (
-        f"This returning learner has done {history_count} recent session(s); a brief "
-        "welcome-back nod is welcome on this first frame only."
-        if history_count > 0
-        else ""
-    )
+    welcome = welcome_line(memory)
     for i, frame in enumerate(plan.frames):
+        extra = []
+        if i == 0 and welcome:
+            extra.append(welcome)
+        note = stage_struggle_note(memory, frame.stage)
+        if note:
+            extra.append(note)
         narration, used_fallback = narrate_frame(
             plan, frame, client=client, model=model, tone=tone, level=level,
-            continuity=continuity if i == 0 else "",
+            continuity=" ".join(extra),
         )
         yield frame, narration, used_fallback

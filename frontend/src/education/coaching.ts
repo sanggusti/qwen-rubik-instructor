@@ -15,6 +15,8 @@ export interface CoachingContext {
     lessonCompleted: boolean;
     isLastStep: boolean;
     nextLessonTitle?: string;
+    /** Off-track moves made on this step so far, used to escalate help. */
+    stepMistakes?: number;
 }
 
 function hint(body: string): CoachingMessage {
@@ -33,6 +35,7 @@ function recommendation(body: string): CoachingMessage {
 // progress; the engine still validates completion via endsWithMoves.
 export function buildCoachingMessages(args: CoachingContext): CoachingMessage[] {
     const { step, moveHistory, stepCompleted, lessonCompleted, isLastStep, nextLessonTitle } = args;
+    const stepMistakes = args.stepMistakes ?? 0;
 
     if (lessonCompleted) {
         const messages: CoachingMessage[] = [recommendation('Lesson complete.')];
@@ -42,7 +45,9 @@ export function buildCoachingMessages(args: CoachingContext): CoachingMessage[] 
 
     switch (step.validator.type) {
         case 'moveSequence':
-            return sequenceMessages(step, step.validator.moves, moveHistory, stepCompleted, isLastStep);
+            return sequenceMessages(
+                step, step.validator.moves, moveHistory, stepCompleted, isLastStep, stepMistakes
+            );
 
         case 'manual':
             return step.hints?.length
@@ -66,7 +71,8 @@ function sequenceMessages(
     expectedMoves: string[],
     moveHistory: string[],
     stepCompleted: boolean,
-    isLastStep: boolean
+    isLastStep: boolean,
+    stepMistakes: number
 ): CoachingMessage[] {
     if (stepCompleted) {
         return [
@@ -100,14 +106,34 @@ function sequenceMessages(
     }
     const expectedMove = expectedMoves[matched] ?? expectedMoves[expectedMoves.length - 1];
     const gotMove = moveHistory[matched] ?? moveHistory[moveHistory.length - 1];
+    const error = mistake(`Expected ${expectedMove}, but got ${gotMove}.`);
+
+    // Escalate the help the more the learner slips on this same step.
+    if (stepMistakes >= 5) {
+        return [
+            error,
+            recommendation(
+                `Nearly there. Tap "Show next move" for the exact turn (${expectedMove}), ` +
+                    'or "Apply example moves" to watch the whole sequence.'
+            )
+        ];
+    }
+    if (stepMistakes >= 3) {
+        return [
+            error,
+            recommendation(
+                `Restart from ${expectedMoves[0]} and go slowly — the move you need here is ${expectedMove}.`
+            )
+        ];
+    }
     return [
-        mistake(`Expected ${expectedMove}, but got ${gotMove}.`),
+        error,
         recommendation('Try the sequence again from the beginning, or use Apply example moves.')
     ];
 }
 
 // Length of the longest suffix of `history` that is a prefix of `expected`.
-function trailingPrefixLength(history: string[], expected: string[]): number {
+export function trailingPrefixLength(history: string[], expected: string[]): number {
     const max = Math.min(history.length, expected.length);
     for (let p = max; p > 0; p--) {
         let ok = true;

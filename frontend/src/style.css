@@ -406,6 +406,28 @@ html, body {
   margin-bottom: 8px;
 }
 #lessons .lsn-btn:disabled { opacity: 0.4; cursor: default; }
+#lessons .lsn-item.is-locked { opacity: 0.45; cursor: default; }
+
+#lessons .lsn-ask {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+#lessons .lsn-ask-input {
+  flex: 1 1 140px;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+}
+#lessons .lsn-ask-answer {
+  color: var(--text);
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
 
 #lessons .lsn-coaching {
   display: flex;

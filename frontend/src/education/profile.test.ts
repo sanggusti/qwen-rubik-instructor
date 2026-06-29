@@ -6,7 +6,9 @@ import {
   setLevel,
   appendHistory,
   deriveMethod,
-  nextLevel
+  nextLevel,
+  recordStageResult,
+  buildMemoryDigest
 } from './profile';
 
 // In-memory StorageLike so the profile is testable without a DOM.
@@ -66,9 +68,62 @@ describe('profile', () => {
   });
 
   it('recovers from corrupt storage', () => {
-    saveProfile({ level: 'advanced', method: 'cfop', sessionId: 's', history: [] }, store);
+    saveProfile(
+      { level: 'advanced', method: 'cfop', sessionId: 's', history: [], performance: {} },
+      store
+    );
     store.setItem('rubik-profile', '{not json');
     const p = loadProfile(store);
     expect(p.level).toBe('newbie'); // falls back cleanly
+  });
+
+  it('defaults to an empty performance map', () => {
+    expect(loadProfile(store).performance).toEqual({});
+  });
+});
+
+describe('performance', () => {
+  it('accumulates attempts, mistakes, and best time per stage', () => {
+    recordStageResult({ stage: 'cross', label: 'Cross', mistakes: 3, durationMs: 8000 }, store);
+    recordStageResult({ stage: 'cross', label: 'Cross', mistakes: 1, durationMs: 5000 }, store);
+    const stat = loadProfile(store).performance['cross'];
+    expect(stat.attempts).toBe(2);
+    expect(stat.mistakes).toBe(4); // cumulative
+    expect(stat.bestMs).toBe(5000); // fastest
+    expect(stat.label).toBe('Cross');
+  });
+
+  it('marks a stage mastered only when completed cleanly', () => {
+    recordStageResult({ stage: 'sune', mistakes: 4 }, store);
+    expect(loadProfile(store).performance['sune'].mastered).toBe(false);
+    recordStageResult({ stage: 'sune', mistakes: 0 }, store);
+    expect(loadProfile(store).performance['sune'].mastered).toBe(true);
+    // Stays mastered even after a later sloppy attempt.
+    recordStageResult({ stage: 'sune', mistakes: 9 }, store);
+    expect(loadProfile(store).performance['sune'].mastered).toBe(true);
+  });
+
+  it('survives a reload', () => {
+    recordStageResult({ stage: 'middle', mistakes: 2, durationMs: 1000 }, store);
+    const reloaded = loadProfile(store);
+    expect(reloaded.performance['middle'].mistakes).toBe(2);
+    expect(reloaded.performance['middle'].bestMs).toBe(1000);
+  });
+});
+
+describe('buildMemoryDigest', () => {
+  it('surfaces top struggles and mastered stages compactly', () => {
+    recordStageResult({ stage: 'cross', label: 'Cross', mistakes: 0 }, store); // mastered
+    recordStageResult({ stage: 'middle', label: 'Middle layer', mistakes: 6 }, store);
+    recordStageResult({ stage: 'll-cross', label: 'Yellow cross', mistakes: 2 }, store);
+    appendHistory({ kind: 'lesson', method: 'lbl', stages: 5, at: 'now' }, store);
+
+    const digest = buildMemoryDigest(loadProfile(store));
+    expect(digest.level).toBe('newbie');
+    expect(digest.sessions).toBe(1);
+    expect(digest.lastKind).toBe('lesson');
+    expect(digest.mastered).toContain('Cross');
+    // Struggles sorted by mistakes desc, mastered stages excluded.
+    expect(digest.struggles.map((s) => s.label)).toEqual(['Middle layer', 'Yellow cross']);
   });
 });

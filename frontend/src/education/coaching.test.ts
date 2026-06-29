@@ -112,4 +112,15 @@ describe('buildCoachingMessages', () => {
         expect(messages[0].kind).toBe('recommendation');
         expect(messages[0].body.toLowerCase()).toContain('solve');
     });
+
+    it('escalates help after repeated mistakes on the same step', () => {
+        const ctx = { ...base, step: seqStep(['R', 'U']), moveHistory: ['R', 'D'] };
+        const mild = buildCoachingMessages({ ...ctx, stepMistakes: 1 });
+        const mid = buildCoachingMessages({ ...ctx, stepMistakes: 3 });
+        const hard = buildCoachingMessages({ ...ctx, stepMistakes: 5 });
+        // Mild keeps the generic retry nudge; mid/hard get more concrete rescue.
+        expect(mild.some((m) => m.body.includes('Apply example moves'))).toBe(true);
+        expect(mid.some((m) => m.body.includes('go slowly'))).toBe(true);
+        expect(hard.some((m) => m.body.includes('Show next move'))).toBe(true);
+    });
 });

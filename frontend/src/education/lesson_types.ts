@@ -22,6 +22,9 @@ export interface Lesson {
     audience: string;
     description: string;
     steps: LessonStep[];
+    // Solver stage this lesson maps onto (e.g. 'cross', 'middle-layer'). Lets
+    // performance be keyed by stage so it aligns with generated solve frames.
+    stage?: string;
 }
 
 export interface LessonProgress {

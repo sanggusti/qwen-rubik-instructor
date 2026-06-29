@@ -2,8 +2,9 @@
 // No UI framework: plain DOM updated from the engine's snapshots.
 
 import type { LessonEngine, EngineState } from '../education/lesson_engine';
-import type { LessonTrack } from '../education/lesson_types';
+import type { LessonTrack, Lesson } from '../education/lesson_types';
 import { loadProfile } from '../education/profile';
+import { recommendNext, reasonText, masteryBlocker } from '../education/recommendation';
 
 const TRACKS: { id: LessonTrack; label: string }[] = [
     { id: 'beginner', label: 'Beginner' },
@@ -19,6 +20,7 @@ export interface AskContext {
 export class LessonsPanel {
     readonly el: HTMLDivElement;
     private filterEl!: HTMLDivElement;
+    private confirmEl!: HTMLDivElement;
     private listEl!: HTMLDivElement;
     private detailEl!: HTMLDivElement;
     private trackButtons = new Map<LessonTrack, HTMLButtonElement>();
@@ -93,6 +95,13 @@ export class LessonsPanel {
             this.el.appendChild(this.generateStatus);
         }
 
+        // A mastery-nudge confirmation, shown above the list when the learner
+        // tries to skip ahead of an unmastered lesson. Hidden until then.
+        this.confirmEl = document.createElement('div');
+        this.confirmEl.className = 'lsn-confirm';
+        this.confirmEl.style.display = 'none';
+        this.el.appendChild(this.confirmEl);
+
         this.listEl = document.createElement('div');
         this.listEl.className = 'lsn-list';
         this.el.appendChild(this.listEl);
@@ -132,6 +141,21 @@ export class LessonsPanel {
         // been completed at least once, so the path is followed top to bottom.
         const performance = loadProfile().performance;
         const gated = this.track === 'beginner';
+
+        // The agent's decision from memory: surface one recommended next lesson at
+        // the top of the beginner path (revisit a weak spot / refresh a stale skill
+        // / continue). Memory-driven, so it changes as the learner's stats change.
+        if (this.track === 'beginner' && !active) {
+            const rec = recommendNext(loadProfile(), lessons);
+            if (rec) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'lsn-item lsn-recommend';
+                btn.textContent = `★ Recommended: ${rec.lesson.title} — ${reasonText(rec.reason)}`;
+                btn.addEventListener('click', () => this.requestSelect(rec.lesson));
+                this.listEl.appendChild(btn);
+            }
+        }
         let prevDone = true; // the first lesson is always open
         for (const lesson of lessons) {
             // Generated (Qwen) lessons aren't part of the gated path — never lock.
@@ -147,15 +171,57 @@ export class LessonsPanel {
                 btn.textContent = `🔒 ${lesson.title}`;
             } else {
                 btn.textContent = lesson.title;
-                btn.addEventListener('click', () => {
-                    this.engine.selectLesson(lesson.id);
-                    this.onSelect?.();
-                });
+                btn.addEventListener('click', () => this.requestSelect(lesson));
             }
             this.listEl.appendChild(btn);
             const attempted = (performance[lesson.stage ?? lesson.id]?.attempts ?? 0) > 0;
             prevDone = attempted;
         }
+    }
+
+    // Selecting a lesson goes through here so we can nudge mastery first. If the
+    // pick skips past an earlier unmastered lesson, ask before continuing; the
+    // learner can still choose the small win. Otherwise select straight away.
+    private requestSelect(lesson: Lesson): void {
+        const blocker =
+            this.track === 'beginner'
+                ? masteryBlocker(loadProfile(), this.engine.getLessons('beginner'), lesson.id)
+                : null;
+        if (!blocker || blocker.id === lesson.id) {
+            this.clearConfirm();
+            this.engine.selectLesson(lesson.id);
+            this.onSelect?.();
+            return;
+        }
+        this.showConfirm(lesson, blocker);
+    }
+
+    private showConfirm(target: Lesson, blocker: Lesson): void {
+        this.confirmEl.replaceChildren();
+        this.confirmEl.style.display = '';
+
+        const msg = document.createElement('p');
+        msg.className = 'lsn-confirm-msg';
+        msg.textContent = `Mastery first: you haven't mastered “${blocker.title}” yet. Finishing it cleanly makes “${target.title}” much easier. Continue anyway?`;
+        this.confirmEl.appendChild(msg);
+
+        const row = document.createElement('div');
+        row.className = 'lsn-actions';
+        const go = (id: string) => {
+            this.clearConfirm();
+            this.engine.selectLesson(id);
+            this.onSelect?.();
+        };
+        const back = this.button(`Master “${blocker.title}” first`, () => go(blocker.id));
+        back.classList.add('lsn-confirm-primary');
+        row.appendChild(back);
+        row.appendChild(this.button('Continue anyway', () => go(target.id)));
+        this.confirmEl.appendChild(row);
+    }
+
+    private clearConfirm(): void {
+        this.confirmEl.replaceChildren();
+        this.confirmEl.style.display = 'none';
     }
 
     // While a lesson is active, collapse the browse UI (track filter, generate
@@ -169,6 +235,9 @@ export class LessonsPanel {
         if (this.generateRow) this.generateRow.style.display = display;
         if (this.generateStatus) this.generateStatus.style.display = display;
         this.listEl.style.display = display;
+        // A pending mastery-nudge is only relevant while browsing; drop it when a
+        // lesson takes over the panel.
+        if (!visible) this.clearConfirm();
     }
 
     private renderDetail(state: EngineState): void {
@@ -193,6 +262,19 @@ export class LessonsPanel {
         );
 
         const { lesson, step, stepIndex, stepCount, stepCompleted, lessonCompleted } = state;
+
+        // A finished lesson reopens on its last (completed) step — say so plainly
+        // and offer a fresh start, so a returning learner isn't dropped onto a
+        // "complete" screen with no obvious way to practise it again.
+        if (lessonCompleted) {
+            const done = document.createElement('div');
+            done.className = 'lsn-done-banner';
+            const msg = document.createElement('span');
+            msg.textContent = 'You finished this lesson.';
+            done.appendChild(msg);
+            done.appendChild(this.button('Start over', () => this.engine.resetLesson()));
+            this.detailEl.appendChild(done);
+        }
 
         // Update the persistent ask box's grounding context for this step.
         this.askContext = {

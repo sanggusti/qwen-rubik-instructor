@@ -48,6 +48,8 @@ class MemoryDigest(BaseModel):
     lastKind: Optional[str] = None
     struggles: List[StruggleStage] = []
     mastered: List[str] = []
+    # Mastered skills gone stale (the forgetting curve), surfaced for review.
+    dueForReview: List[str] = []
 
 
 class NarrateRequest(BaseModel):

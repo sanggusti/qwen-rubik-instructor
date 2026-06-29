@@ -8,7 +8,12 @@ import {
   deriveMethod,
   nextLevel,
   recordStageResult,
-  buildMemoryDigest
+  buildMemoryDigest,
+  decayFactor,
+  decayedWeight,
+  isDueForReview,
+  type StageStat,
+  type UserProfile
 } from './profile';
 
 // In-memory StorageLike so the profile is testable without a DOM.
@@ -108,6 +113,98 @@ describe('performance', () => {
     const reloaded = loadProfile(store);
     expect(reloaded.performance['middle'].mistakes).toBe(2);
     expect(reloaded.performance['middle'].bestMs).toBe(1000);
+  });
+});
+
+const NOW = 1_700_000_000_000;
+const DAY = 24 * 60 * 60 * 1000;
+
+function stat(over: Partial<StageStat> & { stage: string }): StageStat {
+  return {
+    label: over.stage,
+    attempts: 1,
+    mistakes: 0,
+    lastAt: new Date(NOW).toISOString(),
+    mastered: false,
+    ...over
+  };
+}
+
+function saveStats(stats: StageStat[], sessions = 0): void {
+  const performance: Record<string, StageStat> = {};
+  for (const s of stats) performance[s.stage] = s;
+  const profile: UserProfile = {
+    level: 'newbie',
+    method: 'lbl',
+    sessionId: 's',
+    history: Array.from({ length: sessions }, () => ({
+      kind: 'lesson' as const,
+      method: 'lbl' as const,
+      stages: 1,
+      at: 'now'
+    })),
+    performance
+  };
+  saveProfile(profile, store);
+}
+
+function daysAgo(n: number): string {
+  return new Date(NOW - n * DAY).toISOString();
+}
+
+describe('decay & forgetting', () => {
+  it('decayFactor halves every half-life and is 1 at zero age', () => {
+    expect(decayFactor(0)).toBe(1);
+    expect(decayFactor(14 * DAY)).toBeCloseTo(0.5, 5);
+    expect(decayFactor(28 * DAY)).toBeCloseTo(0.25, 5);
+  });
+
+  it('fades a struggle weight by how long ago it was last hit', () => {
+    const recent = stat({ stage: 'a', mistakes: 8, lastAt: daysAgo(0) });
+    const old = stat({ stage: 'b', mistakes: 8, lastAt: daysAgo(14) });
+    expect(decayedWeight(recent, NOW)).toBeCloseTo(8, 5);
+    expect(decayedWeight(old, NOW)).toBeCloseTo(4, 5);
+  });
+
+  it('forgets a struggle whose faded weight drops below the threshold', () => {
+    saveStats([
+      stat({ stage: 'recent', label: 'Recent', mistakes: 4, lastAt: daysAgo(0) }),
+      stat({ stage: 'ancient', label: 'Ancient', mistakes: 2, lastAt: daysAgo(60) })
+    ]);
+    const digest = buildMemoryDigest(loadProfile(store), { now: NOW });
+    const stages = digest.struggles.map((s) => s.stage);
+    expect(stages).toContain('recent');
+    expect(stages).not.toContain('ancient'); // decayed below FORGET_THRESHOLD
+  });
+
+  it('ranks a context-matching struggle first even with lower raw weight', () => {
+    saveStats([
+      stat({ stage: 'big', label: 'Big', mistakes: 9, lastAt: daysAgo(0) }),
+      stat({ stage: 'cross', label: 'Cross', mistakes: 3, lastAt: daysAgo(0) })
+    ]);
+    const digest = buildMemoryDigest(loadProfile(store), { now: NOW, context: 'cross' });
+    expect(digest.struggles[0].stage).toBe('cross');
+  });
+
+  it('surfaces stale mastered skills as due for review', () => {
+    saveStats([
+      stat({ stage: 'fresh', label: 'Fresh', mastered: true, lastAt: daysAgo(1) }),
+      stat({ stage: 'stale', label: 'Stale', mastered: true, lastAt: daysAgo(30) })
+    ]);
+    expect(isDueForReview(stat({ stage: 'stale', mastered: true, lastAt: daysAgo(30) }), NOW)).toBe(true);
+    const digest = buildMemoryDigest(loadProfile(store), { now: NOW });
+    expect(digest.dueForReview).toContain('Stale');
+    expect(digest.dueForReview).not.toContain('Fresh');
+  });
+
+  it('bounds the mastered list so a long history fits the context window', () => {
+    saveStats(
+      Array.from({ length: 9 }, (_, i) =>
+        stat({ stage: `m${i}`, label: `M${i}`, mastered: true, lastAt: daysAgo(i) })
+      )
+    );
+    const digest = buildMemoryDigest(loadProfile(store), { now: NOW });
+    expect(digest.mastered.length).toBe(6); // MAX_MASTERED
   });
 });
 

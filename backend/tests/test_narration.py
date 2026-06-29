@@ -168,6 +168,49 @@ def test_no_memory_means_no_continuity(monkeypatch):
     assert "recent session" not in cap.user_messages[0]
 
 
+# --- memory budgeting & forgetting ---
+
+def test_within_budget_truncates_on_word_boundary():
+    text = "word " * 100  # ~500 chars, well over the budget
+    out = llm_narrator._within_budget(text, budget=40)
+    assert len(out) <= 41  # budget + the ellipsis
+    assert out.endswith("…")
+    assert "wor…" not in out  # never cuts mid-word
+
+
+def test_within_budget_passes_short_text_through():
+    assert llm_narrator._within_budget("short note") == "short note"
+
+
+def test_welcome_line_surfaces_due_for_review():
+    memory = {"sessions": 2, "dueForReview": ["Yellow cross", "Sune"]}
+    line = llm_narrator.welcome_line(memory)
+    assert "while since they practised" in line
+    assert "Yellow cross" in line
+
+
+def test_welcome_line_is_budget_capped():
+    # A long mastered list must not blow the memory budget.
+    memory = {"sessions": 9, "mastered": [f"Skill number {i}" for i in range(50)]}
+    line = llm_narrator.welcome_line(memory)
+    assert len(line) <= llm_narrator.MEMORY_CHAR_BUDGET + 1
+
+
+def test_stage_note_prioritised_over_welcome(monkeypatch):
+    cap = _Capture()
+    monkeypatch.setattr(llm_narrator, "_complete", cap)
+    plan = build_topic_lesson("sune")
+    target = plan.frames[0].stage
+    memory = {
+        "sessions": 4,
+        "struggles": [{"stage": target, "label": target, "mistakes": 5}],
+    }
+    list(llm_narrator.narrate_plan(plan, client=None, model="x", memory=memory))
+    first = cap.user_messages[0]
+    # Frame 0 carries both; the stage-specific note comes before the welcome nod.
+    assert first.index("struggled with this stage") < first.index("recent session")
+
+
 # --- merge ---
 
 def test_beat_from_keeps_skeleton_moves():

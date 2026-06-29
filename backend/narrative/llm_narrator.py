@@ -121,6 +121,21 @@ def narrate_frame(
     return fallback_narration(plan, frame), True
 
 
+# The memory we inject into a prompt competes with the actual frame for the
+# context window, so it's hard-capped. Stage-specific notes are placed before the
+# general welcome so they survive the truncation.
+MEMORY_CHAR_BUDGET = 240
+
+
+def _within_budget(text: str, budget: int = MEMORY_CHAR_BUDGET) -> str:
+    """Truncate a memory block to the budget on a word boundary, never mid-word."""
+    text = text.strip()
+    if len(text) <= budget:
+        return text
+    cut = text[:budget].rsplit(" ", 1)[0]
+    return (cut or text[:budget]).rstrip() + "…"
+
+
 def welcome_line(memory: Optional[dict]) -> str:
     """A first-frame welcome-back nod grounded in the learner's memory digest."""
     if not memory:
@@ -136,8 +151,11 @@ def welcome_line(memory: Optional[dict]) -> str:
     mastered = memory.get("mastered") or []
     if mastered:
         parts.append(f"They've already got: {', '.join(mastered[:3])}.")
+    due = memory.get("dueForReview") or []
+    if due:
+        parts.append(f"It's been a while since they practised: {', '.join(due[:2])}.")
     parts.append("A brief, specific welcome-back nod is welcome on this first frame only.")
-    return " ".join(parts)
+    return _within_budget(" ".join(parts))
 
 
 def stage_struggle_note(memory: Optional[dict], stage: str) -> str:
@@ -227,14 +245,16 @@ def narrate_plan(
     tone = pick_tone(plan.id)
     welcome = welcome_line(memory)
     for i, frame in enumerate(plan.frames):
+        # Stage-specific note first: it's the most relevant memory for this frame,
+        # so it survives the budget if the general welcome has to be trimmed.
         extra = []
-        if i == 0 and welcome:
-            extra.append(welcome)
         note = stage_struggle_note(memory, frame.stage)
         if note:
             extra.append(note)
+        if i == 0 and welcome:
+            extra.append(welcome)
         narration, used_fallback = narrate_frame(
             plan, frame, client=client, model=model, tone=tone, level=level,
-            continuity=" ".join(extra),
+            continuity=_within_budget(" ".join(extra)),
         )
         yield frame, narration, used_fallback

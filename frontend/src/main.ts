@@ -16,7 +16,8 @@ import { ExplorePanel } from './ui/explore_panel';
 import { WalkthroughEngine } from './education/walkthrough';
 import { WALKTHROUGHS } from './education/walkthroughs';
 import { generateWalkthrough, generateLesson, askQwen } from './education/remote_content';
-import { loadProfile, setLevel, appendHistory, buildMemoryDigest, LEVELS, type Level } from './education/profile';
+import { loadProfile, setLevel, appendHistory, buildMemoryDigest, LEVELS, type Level, type MemoryDigest } from './education/profile';
+import { recommendNext, reasonText } from './education/recommendation';
 import { Hud } from './ui/hud';
 import { StageCaption } from './ui/stage_caption';
 import { applyMove, solvedState, isSolved, cloneState, type State } from './core/state';
@@ -180,6 +181,8 @@ function boot(container: HTMLElement): void {
         : id === 'explore' ? 'walkthrough'
         : 'none';
       closeOthers(keep);
+      // The "You" panel shows live memory, so refresh it whenever it's opened.
+      if (id === 'level') youPanel.refresh();
     });
 
     // Learner profile (level / method / session history), persisted client-side
@@ -256,7 +259,12 @@ function boot(container: HTMLElement): void {
         // Leave the panel open so the generated lesson's controls are visible.
       },
       (req) =>
-        askQwen({ ...req, level: profile.level, memory: buildMemoryDigest(loadProfile()) })
+        askQwen({
+          ...req,
+          level: profile.level,
+          // Pass the current stage as context so the relevant memory ranks first.
+          memory: buildMemoryDigest(loadProfile(), { context: req.stage })
+        })
     );
     const practicePanel = new PracticePanel(container, practiceEngine, () => {
       closeOthers('practice');
@@ -286,16 +294,20 @@ function boot(container: HTMLElement): void {
     const helpEl = buildHelp();
     container.appendChild(helpEl);
 
-    const levelPanel = buildLevelPanel(profile.level, (lv) => {
+    const youPanel = buildYouPanel(profile.level, (lv) => {
       profile = setLevel(lv);
-      hud.close();
+      youPanel.refresh();
     });
-    container.appendChild(levelPanel);
+    container.appendChild(youPanel.el);
+
+    // A client-side "welcome back" nod from memory, so cross-session continuity
+    // shows even when the Qwen backend is absent (its welcome lives in frame 0).
+    maybeShowWelcomeBack(container, buildMemoryDigest(loadProfile()));
 
     hud.register('lessons', 'Lessons', lessonsPanel.el);
     hud.register('practice', 'Practice', practicePanel.el);
     hud.register('explore', 'Explore', explorePanel.el);
-    hud.register('level', 'Level', levelPanel);
+    hud.register('level', 'You', youPanel.el);
     if (debuggerPanel) hud.register('debugger', 'State', debuggerPanel.el);
     hud.register('help', 'Help', helpEl);
     hud.action('Scramble', () => api.scramble());
@@ -351,9 +363,16 @@ const LEVEL_LABELS: Record<Level, string> = {
   advanced: 'Advanced'
 };
 
-// A small persona selector: newbie / intermediate / advanced. Persisted via the
-// profile store; the active choice personalises generated content.
-function buildLevelPanel(current: Level, onChange: (level: Level) => void): HTMLElement {
+interface YouPanel {
+  el: HTMLElement;
+  refresh: () => void;
+}
+
+// The "You" panel: a persona selector (newbie / intermediate / advanced) plus a
+// "What I remember" view that makes the learner's memory legible — mastered
+// skills, the struggles the agent is still tracking (these fade and drop over
+// time), skills due for review, and the next lesson it recommends.
+function buildYouPanel(current: Level, onChange: (level: Level) => void): YouPanel {
   const el = document.createElement('div');
   el.id = 'level';
 
@@ -366,7 +385,7 @@ function buildLevelPanel(current: Level, onChange: (level: Level) => void): HTML
   row.className = 'exp-row';
   const buttons = new Map<Level, HTMLButtonElement>();
   let active = current;
-  const refresh = (): void => {
+  const refreshButtons = (): void => {
     for (const [lv, btn] of buttons) btn.classList.toggle('is-active', lv === active);
   };
   for (const lv of LEVELS) {
@@ -376,7 +395,7 @@ function buildLevelPanel(current: Level, onChange: (level: Level) => void): HTML
     btn.textContent = LEVEL_LABELS[lv];
     btn.addEventListener('click', () => {
       active = lv;
-      refresh();
+      refreshButtons();
       onChange(lv);
     });
     buttons.set(lv, btn);
@@ -390,8 +409,82 @@ function buildLevelPanel(current: Level, onChange: (level: Level) => void): HTML
     'Newbie: gentle, layer-by-layer. Intermediate / Advanced: CFOP framing and terser cues.';
   el.appendChild(hint);
 
-  refresh();
-  return el;
+  const memSection = document.createElement('div');
+  memSection.className = 'exp-section';
+  memSection.textContent = 'What I remember';
+  el.appendChild(memSection);
+
+  const memEl = document.createElement('div');
+  memEl.className = 'you-memory';
+  el.appendChild(memEl);
+
+  const line = (label: string, value: string): void => {
+    const p = document.createElement('p');
+    p.className = 'exp-hint';
+    const b = document.createElement('b');
+    b.textContent = `${label}: `;
+    p.appendChild(b);
+    p.appendChild(document.createTextNode(value));
+    memEl.appendChild(p);
+  };
+
+  const renderMemory = (): void => {
+    memEl.replaceChildren();
+    const digest = buildMemoryDigest(loadProfile());
+    if (digest.sessions === 0 && !digest.mastered.length && !digest.struggles.length) {
+      line('New here', 'take a lesson and I’ll start remembering how you’re doing.');
+      return;
+    }
+    line('Sessions', String(digest.sessions));
+    line('Mastered', digest.mastered.length ? digest.mastered.join(', ') : '—');
+    line(
+      'Working on',
+      digest.struggles.length
+        ? digest.struggles.map((s) => `${s.label ?? s.stage} (${s.mistakes} slips)`).join(', ')
+        : '—'
+    );
+    if (digest.dueForReview.length) line('Due for review', digest.dueForReview.join(', '));
+    const rec = recommendNext(loadProfile());
+    if (rec) line('Recommended next', `${rec.lesson.title} — ${reasonText(rec.reason)}`);
+  };
+
+  renderMemory();
+  refreshButtons();
+  return { el, refresh: () => { renderMemory(); refreshButtons(); } };
+}
+
+// A dismissible "welcome back" bar driven purely by client-side memory.
+function maybeShowWelcomeBack(container: HTMLElement, digest: MemoryDigest): void {
+  const hasMemory =
+    digest.sessions > 0 ||
+    digest.mastered.length > 0 ||
+    digest.struggles.length > 0 ||
+    digest.dueForReview.length > 0;
+  if (!hasMemory) return;
+  const bar = document.createElement('div');
+  bar.id = 'welcome-back';
+
+  const parts = ['Welcome back.'];
+  if (digest.sessions > 0) parts.push(`${digest.sessions} session${digest.sessions === 1 ? '' : 's'} so far.`);
+  if (digest.dueForReview.length) parts.push(`Time to refresh: ${digest.dueForReview[0]}.`);
+  else if (digest.struggles.length) {
+    const s = digest.struggles[0];
+    parts.push(`Last time you worked on: ${s.label ?? s.stage}.`);
+  } else if (digest.mastered.length) parts.push(`You’ve already got: ${digest.mastered[0]}.`);
+
+  const msg = document.createElement('span');
+  msg.textContent = parts.join(' ');
+  bar.appendChild(msg);
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'welcome-close';
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.addEventListener('click', () => bar.remove());
+  bar.appendChild(close);
+
+  container.appendChild(bar);
 }
 
 function buildHelp(): HTMLElement {

@@ -7,10 +7,11 @@ backend) into something a human can actually **learn to solve a cube with** —
 where the LLM remembers how you're doing and adapts.
 
 The work landed in five incremental phases on 2026-06-29, followed by two
-focused fixes (Parts 4–5) on the same headline feature, then a pivot (Part 6) to
-make the memory good enough for the **Qwen Cloud Hackathon → MemoryAgent track**.
-Every phase shipped with tests; the current state is backend 703 tests, frontend
-181 tests, all green, plus live model calls and in-browser checks confirming the
+focused fixes (Parts 4–5) on the same headline feature, a pivot (Part 6) to make
+the memory good enough for the **Qwen Cloud Hackathon → MemoryAgent track**, and a
+cynical QA pass (Part 7) that caught the grader scoring the wrong thing. Every
+phase shipped with tests; the current state is backend 703 tests, frontend 193
+tests, all green, plus live model calls and in-browser checks confirming the
 end-to-end loop.
 
 ## The posts
@@ -48,17 +49,24 @@ end-to-end loop.
    retrieval, a budgeted injection, a *mastery-before-progression* next-step
    decision, and a "What I remember" view that makes it all legible.
 
+7. **[The tutor that lied: grading against the cube, not the move log](./07-the-tutor-that-lied-grading-against-the-cube.md)**
+   A cynical QA pass found the grader checking the learner's *transcript* instead
+   of their cube: a wrong move then "Apply moves" scored as "correct," and the
+   flagship solve lesson couldn't grade or hint at all. Gating completion on cube
+   state, a `cubeState` validator that carries each stage's target, and a
+   "run it and look" verification that hit a frozen-`requestAnimationFrame` wall.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-7. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
+8. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
    service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
    services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-8. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
+9. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
    client-side memory lives.
-9. **The 3-minute demo** — the cross-session memory loop, end to end.
+10. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## The throughline
 

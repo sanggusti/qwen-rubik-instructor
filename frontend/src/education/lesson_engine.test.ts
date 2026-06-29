@@ -145,11 +145,13 @@ describe('LessonEngine', () => {
         const engine = new LessonEngine(api, LESSONS, storage);
         engine.selectLesson('l1');
         engine.markComplete(); // l1-seq
-        user('R', 'U'); // completes l1-seq -> l1-solved; cube now scrambled by R U
+        // Completes l1-seq -> l1-solved, whose setup ['R'] auto-applies on entry,
+        // so the cube is now scrambled by R U then the setup R (= R U R).
+        user('R', 'U');
         expect(engine.getCurrentStep()?.id).toBe('l1-solved');
         expect(api.isSolved()).toBe(false);
 
-        user("U'", "R'"); // undo R U -> solved
+        user("R'", "U'", "R'"); // undo R U R -> solved
         expect(api.isSolved()).toBe(true);
 
         let lessonCompleted = false;
@@ -239,6 +241,138 @@ const SEQ_LESSON: Lesson[] = [
         ]
     }
 ];
+
+// A self-checking drill lesson: setup is the inverse of the algorithm, so
+// performing the algorithm from the setup position returns the cube to solved.
+const SETUP_LESSON: Lesson[] = [
+    {
+        id: 'drill',
+        track: 'beginner',
+        title: 'Drill',
+        audience: 'a',
+        description: 'd',
+        steps: [
+            {
+                id: 'drill-do',
+                title: 'Do',
+                body: 'b',
+                setupMoves: ['U', 'R', "U'", "R'"],
+                expectedMoves: ['R', 'U', "R'", "U'"],
+                validator: { type: 'moveSequence', moves: ['R', 'U', "R'", "U'"] }
+            }
+        ]
+    }
+];
+
+describe('LessonEngine setup drills (state-gated)', () => {
+    it('auto-applies the setup so the cube is scrambled on entry', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        expect(api.isSolved()).toBe(false); // setup ran without the user moving
+    });
+
+    it('completes when the algorithm actually solves the cube', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        user('R', 'U', "R'", "U'"); // algorithm from the setup -> solved
+        expect(api.isSolved()).toBe(true);
+        const off = engine.subscribe(() => {});
+        off();
+        expect(engine.getCurrentStep()?.id).toBe('drill-do');
+        // The single-step lesson is now complete.
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(true);
+    });
+
+    it('does NOT complete when a wrong move precedes the right sequence', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        user('D'); // stray move knocks the cube off the setup trajectory
+        user('R', 'U', "R'", "U'"); // suffix matches, but cube is not solved
+        expect(api.isSolved()).toBe(false);
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false); // the false-"correct" bug must stay fixed
+    });
+
+    it('Apply example moves after a wrong move does NOT falsely complete', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        user('D'); // wrong move
+        engine.applyExampleMoves(); // user "just clicks Apply moves"
+        expect(api.isSolved()).toBe(false);
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false);
+    });
+});
+
+// A solve-stage lesson graded by cube state (as the Qwen "Solve your cube"
+// lesson now is): expected is the exact state after performing expectedMoves.
+function cubeStateLesson(): Lesson[] {
+    const expected = solvedState();
+    for (const m of ['R', 'U', "R'"]) applyMove(expected, m);
+    return [
+        {
+            id: 'solve',
+            track: 'beginner',
+            title: 'Solve',
+            audience: 'a',
+            description: 'd',
+            steps: [
+                {
+                    id: 'stage',
+                    title: 'Stage',
+                    body: 'b',
+                    expectedMoves: ['R', 'U', "R'"],
+                    validator: { type: 'cubeState', expected }
+                }
+            ]
+        }
+    ];
+}
+
+describe('LessonEngine solve stages (cubeState)', () => {
+    it('reveals the next move and auto-grades by reaching the target state', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, cubeStateLesson(), fakeStorage());
+        engine.selectLesson('solve');
+        expect(engine.nextExpectedMove()).toBe('R'); // hint works on solve stages
+        user('R');
+        expect(engine.nextExpectedMove()).toBe('U');
+        user('U', "R'"); // reaches the stage's target state -> completes
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(true);
+    });
+
+    it('does NOT complete when the moves land on a different state', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, cubeStateLesson(), fakeStorage());
+        engine.selectLesson('solve');
+        user('D'); // stray move
+        user('R', 'U', "R'"); // right suffix, wrong resulting state
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false);
+    });
+
+    it('records a mistake on a solve stage (memory signal is no longer always zero)', () => {
+        const { api, user } = fakeApi();
+        const store = fakeStorage();
+        const engine = new LessonEngine(api, cubeStateLesson(), store);
+        engine.selectLesson('solve');
+        user('D'); // off-track on a state-graded stage -> counts as a mistake
+        user("D'", 'R', 'U', "R'"); // undo the stray, then perform the stage -> target
+        // Before Tier B, solve stages were manual and recorded mistakes:0 always.
+        expect(loadPerf(store, 'solve').mistakes).toBeGreaterThan(0);
+    });
+});
 
 describe('LessonEngine performance signals', () => {
     it('records mistakes and duration into the profile on completion', () => {

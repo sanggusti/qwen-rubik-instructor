@@ -183,3 +183,9 @@ export function cloneState(s: State): State {
     U: [...s.U], D: [...s.D], L: [...s.L], R: [...s.R], F: [...s.F], B: [...s.B]
   };
 }
+
+export function statesEqual(a: State, b: State): boolean {
+  return (Object.keys(a) as FaceKey[]).every(f =>
+    a[f].length === b[f].length && a[f].every((c, i) => c === b[f][i])
+  );
+}

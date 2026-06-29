@@ -1,5 +1,5 @@
 import type { State } from '../core/state';
-import { isSolved } from '../core/state';
+import { isSolved, statesEqual } from '../core/state';
 import type { LessonStep } from './lesson_types';
 
 export function validateStep(
@@ -12,10 +12,18 @@ export function validateStep(
             return false;
 
         case 'moveSequence':
-            return endsWithMoves(moveHistory, step.validator.moves);
+            if (!endsWithMoves(moveHistory, step.validator.moves)) return false;
+            // A setup-based drill scrambles with the inverse of the algorithm, so
+            // performing it must also return the cube to solved. Gate on the cube
+            // state too, or a stray move (or "Apply example moves" onto an already
+            // off-track cube) would complete the step on an unsolved cube.
+            return step.setupMoves?.length ? isSolved(state) : true;
 
         case 'cubeSolved':
             return isSolved(state);
+
+        case 'cubeState':
+            return statesEqual(state, step.validator.expected);
     }
 }
 

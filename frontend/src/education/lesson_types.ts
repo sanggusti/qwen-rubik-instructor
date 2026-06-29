@@ -1,9 +1,14 @@
 export type LessonTrack = 'beginner' | 'time-improvement';
 
+import type { State } from '../core/state';
+
 export type StepValidator =
     | { type: 'manual' }
     | { type: 'moveSequence'; moves: string[] }
-    | { type: 'cubeSolved' };
+    | { type: 'cubeSolved' }
+    // Completes when the cube reaches `expected` — the exact state after a solve
+    // stage's moves. Lets the generated solve lesson auto-grade each stage.
+    | { type: 'cubeState'; expected: State };
 
 export interface LessonStep {
     id: string;

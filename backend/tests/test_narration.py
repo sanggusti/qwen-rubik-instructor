@@ -11,7 +11,7 @@ import pytest
 from config import settings
 from narrative import llm_narrator
 from narrative.merge import beat_from, step_from
-from narrative.planner import build_solve_walkthrough, build_topic_lesson
+from narrative.planner import build_solve_lesson, build_solve_walkthrough, build_topic_lesson
 from narrative.schema import FrameNarration, VisualFrame
 from narrative.validator import claimed_moves, validate_narration
 from pipeline.cube.facelet import apply_moves, solved_state
@@ -228,14 +228,16 @@ def test_step_from_setup_frame_uses_move_sequence_validator():
     assert step.setup_moves == fr.setup_moves
 
 
-def test_step_from_solve_stage_is_manual():
+def test_step_from_solve_stage_uses_cube_state_validator():
     s = solved_state()
     apply_moves(s, "R U F D L B".split())
-    plan = build_solve_walkthrough(s)  # reuse solve frames
-    stage_frame = next(fr for fr in plan.frames if fr.moves)
+    plan = build_solve_lesson(s)
+    stage_frame = next(fr for fr in plan.frames if fr.moves)  # first real stage
     step = step_from(stage_frame, FrameNarration(text="follow along"))
-    assert step.validator.type == "manual"
+    assert step.validator.type == "cubeState"
     assert step.expected_moves == stage_frame.moves
+    # The grade target is the exact state after performing the stage's moves.
+    assert step.validator.expected == stage_frame.expected_state
 
 
 # --- live smoke (skipped by default) ---

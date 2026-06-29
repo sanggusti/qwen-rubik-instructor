@@ -366,7 +366,11 @@ export class LessonsPanel {
 
         // Rescue: reveal just the single next move without playing the sequence.
         // The revealed text persists until the learner's next move re-renders.
-        if (step.validator.type === 'moveSequence' && !stepCompleted) {
+        // Available on move-graded steps and solve stages (graded by cube state).
+        if (
+            (step.validator.type === 'moveSequence' || step.validator.type === 'cubeState') &&
+            !stepCompleted
+        ) {
             const rescue = document.createElement('div');
             rescue.className = 'lsn-actions';
             const revealed = document.createElement('span');

@@ -67,6 +67,26 @@ describe('evaluation (moveSequence)', () => {
     });
 });
 
+describe('evaluation (moveSequence with setup)', () => {
+    function setupSeqDrill(setupMoves: string[], moves: string[]): Drill {
+        return { ...seqDrill(moves), setupMoves };
+    }
+
+    it('marks correct only when the right moves also leave the cube solved', () => {
+        const drill = setupSeqDrill(['U', 'R', "U'", "R'"], ['R', 'U', "R'", "U'"]);
+        const solved = scrambled('U', 'R', "U'", "R'", 'R', 'U', "R'", "U'"); // back to solved
+        expect(evaluate(drill, ['R', 'U', "R'", "U'"], solved).status).toBe('correct');
+    });
+
+    it('rejects the right move suffix on a cube knocked off-track', () => {
+        const drill = setupSeqDrill(['U', 'R', "U'", "R'"], ['R', 'U', "R'", "U'"]);
+        const off = scrambled('U', 'R', "U'", "R'", 'D', 'R', 'U', "R'", "U'");
+        const result = evaluate(drill, ['D', 'R', 'U', "R'", "U'"], off);
+        expect(result.status).toBe('wrong');
+        expect(result.message).toContain('isn’t solved');
+    });
+});
+
 describe('evaluation (cubeSolved)', () => {
     it('marks correct when the cube is solved', () => {
         const result = evaluate(solveDrill, ['x'], solvedState());

@@ -61,7 +61,17 @@ class CubeSolvedValidator(CamelModel):
     type: Literal["cubeSolved"] = "cubeSolved"
 
 
-StepValidator = Union[ManualValidator, MoveSequenceValidator, CubeSolvedValidator]
+class CubeStateValidator(CamelModel):
+    # Completes when the learner's cube reaches `expected` — the exact state after
+    # this solve stage's moves. Lets a solve-stage lesson auto-grade (and detect
+    # mistakes) instead of trusting a manual "Mark complete".
+    type: Literal["cubeState"] = "cubeState"
+    expected: dict[str, list[str]]
+
+
+StepValidator = Union[
+    ManualValidator, MoveSequenceValidator, CubeSolvedValidator, CubeStateValidator
+]
 
 
 class LessonStep(CamelModel):
@@ -97,6 +107,9 @@ class VisualFrame(CamelModel):
     highlight: HighlightType = None
     focus: str  # short machine hint of what to talk about
     expected: str  # deterministic description of the result
+    # The cube state after this frame's moves (solve stages only), so a solve
+    # lesson can grade against the cube instead of a manual "Mark complete".
+    expected_state: Optional[dict[str, list[str]]] = None
     dwell_ms: Optional[int] = None
     pace: Optional[Literal["step", "fast"]] = None
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from narrative.schema import (
     Beat,
-    CubeSolvedValidator,
+    CubeStateValidator,
     FrameNarration,
     LessonStep,
     ManualValidator,
@@ -29,12 +29,12 @@ def beat_from(frame: VisualFrame, narration: FrameNarration) -> Beat:
 
 
 def step_from(frame: VisualFrame, narration: FrameNarration) -> LessonStep:
-    # A set-up practice frame expects the exact moves; an un-set-up solve stage
-    # is followed manually.
+    # A set-up practice frame expects the exact moves; a solve stage grades
+    # against the cube state it should reach; everything else is followed manually.
     if frame.setup_moves:
         validator = MoveSequenceValidator(moves=frame.moves)
-    elif frame.moves:
-        validator = ManualValidator()
+    elif frame.expected_state is not None:
+        validator = CubeStateValidator(expected=frame.expected_state)
     else:
         validator = ManualValidator()
     return LessonStep(

@@ -49,6 +49,13 @@ export function buildCoachingMessages(args: CoachingContext): CoachingMessage[] 
                 step, step.validator.moves, moveHistory, stepCompleted, isLastStep, stepMistakes
             );
 
+        case 'cubeState':
+            // A solve stage is graded by cube state but carries its moves in
+            // expectedMoves, so coach it move-by-move just like a sequence.
+            return sequenceMessages(
+                step, step.expectedMoves ?? [], moveHistory, stepCompleted, isLastStep, stepMistakes
+            );
+
         case 'manual':
             return step.hints?.length
                 ? [hint(step.hints[0])]
@@ -91,6 +98,21 @@ function sequenceMessages(
     const onTrack = trailingPrefixLength(moveHistory, expectedMoves);
     if (onTrack > 0) {
         if (onTrack < expectedMoves.length) return [hint(`Next move: ${expectedMoves[onTrack]}.`)];
+        // The whole sequence is done but the step still hasn't completed. For a
+        // state-graded step that means the cube isn't where it should be — an
+        // earlier stray move knocked it off, so the right moves alone aren't enough.
+        if (!stepCompleted && step.setupMoves?.length) {
+            return [
+                mistake('Right moves, but the cube isn’t solved — an earlier move knocked it off.'),
+                recommendation('Reset the cube, run “Set up step”, then do the sequence again.')
+            ];
+        }
+        if (!stepCompleted && step.validator.type === 'cubeState') {
+            return [
+                mistake('Right moves, but the cube isn’t at this stage’s position — an earlier move knocked it off.'),
+                recommendation('Undo your last few turns and follow the listed moves exactly.')
+            ];
+        }
         return [];
     }
 

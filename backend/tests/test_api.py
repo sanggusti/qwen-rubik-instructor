@@ -81,7 +81,9 @@ def test_persona_intermediate_uses_cfop_framing(client):
     apply_moves(state, "R U R' U' F2 B L D' R B'".split())
     res = client.post("/narrate/walkthrough", json={
         "state": state, "level": "intermediate",
-        "history": [{"kind": "walkthrough", "method": "cfop", "stages": 7, "at": "2026-06-28"}],
+        "memory": {"sessions": 1, "lastKind": "walkthrough",
+                   "struggles": [{"stage": "middle-layer", "label": "Middle layer", "mistakes": 5}],
+                   "mastered": ["Cross"]},
     })
     assert res.status_code == 200
     events = parse_sse(res.text)
@@ -105,3 +107,29 @@ def test_bad_requests(client):
     assert client.post("/narrate/walkthrough", json={"topic": "nope"}).status_code == 400
     bad_state = {"U": ["U"] * 9}  # missing faces
     assert client.post("/narrate/walkthrough", json={"state": bad_state}).status_code == 400
+
+
+def test_ask_returns_grounded_answer(client):
+    res = client.post("/ask", json={
+        "question": "Why this move?", "stage": "cross", "moves": ["R", "U"], "level": "newbie",
+    })
+    assert res.status_code == 200
+    body = res.json()
+    assert body["text"] and not body["fallback"]  # mocked LLM returns a valid line
+
+
+def test_ask_requires_a_question(client):
+    assert client.post("/ask", json={"question": "   "}).status_code == 400
+
+
+def test_ask_rejects_invented_moves(client, monkeypatch):
+    # Model answer mentions L/B, which aren't in the move list -> re-prompt fails
+    # twice -> grounded fallback (used_fallback True), never leaks invented moves.
+    monkeypatch.setattr(
+        llm_narrator, "_complete",
+        lambda client, model, messages: json.dumps({"text": "Do L then B to fix it."}),
+    )
+    res = client.post("/ask", json={"question": "help", "moves": ["R", "U"]})
+    body = res.json()
+    assert body["fallback"] is True
+    assert "L" not in body["text"] and "B" not in body["text"]

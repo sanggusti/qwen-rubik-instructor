@@ -215,3 +215,72 @@ function loadCompleted(storage: StorageLike, lessonId: string): string[] {
     if (!raw) return [];
     return (JSON.parse(raw).completedStepIds as string[]) ?? [];
 }
+
+function loadPerf(storage: StorageLike, stage: string) {
+    const raw = storage.getItem('rubik-profile');
+    return JSON.parse(raw ?? '{}').performance?.[stage];
+}
+
+const SEQ_LESSON: Lesson[] = [
+    {
+        id: 'perf',
+        track: 'beginner',
+        title: 'Perf',
+        audience: 'a',
+        description: 'd',
+        steps: [
+            {
+                id: 'perf-seq',
+                title: 'Seq',
+                body: 'b',
+                expectedMoves: ['R', 'U'],
+                validator: { type: 'moveSequence', moves: ['R', 'U'] }
+            }
+        ]
+    }
+];
+
+describe('LessonEngine performance signals', () => {
+    it('records mistakes and duration into the profile on completion', () => {
+        let t = 1000;
+        const { api, user } = fakeApi();
+        const store = fakeStorage();
+        const engine = new LessonEngine(api, SEQ_LESSON, store, () => t);
+        engine.selectLesson('perf');
+        user('D'); // off-track -> one mistake; first move starts the clock at t=1000
+        t = 4000;
+        user('R', 'U'); // ends with R U -> completes the (single-step) lesson
+        const perf = loadPerf(store, 'perf');
+        expect(perf.attempts).toBe(1);
+        expect(perf.mistakes).toBe(1);
+        expect(perf.bestMs).toBe(3000);
+        expect(perf.mastered).toBe(false); // had a mistake
+    });
+
+    it('marks a clean completion mastered', () => {
+        const { api, user } = fakeApi();
+        const store = fakeStorage();
+        const engine = new LessonEngine(api, SEQ_LESSON, store);
+        engine.selectLesson('perf');
+        user('R', 'U');
+        expect(loadPerf(store, 'perf').mastered).toBe(true);
+    });
+});
+
+describe('LessonEngine rescue', () => {
+    it('exposes the next expected move for a sequence step', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        expect(engine.nextExpectedMove()).toBe('R'); // nothing done yet
+        user('R');
+        expect(engine.nextExpectedMove()).toBe('U'); // after a correct prefix
+    });
+
+    it('returns null when the current step is not a sequence', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, LESSONS, fakeStorage());
+        engine.selectLesson('l1'); // first step is manual
+        expect(engine.nextExpectedMove()).toBeNull();
+    });
+});

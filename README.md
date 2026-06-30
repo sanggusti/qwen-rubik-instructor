@@ -31,18 +31,34 @@ walkthroughs — all on a live cube you can grab and play with at any time.
 
 ## Quick start
 
-Requirements: **Node.js 18+** and npm.
+Requirements: **Node.js 18+** and npm, plus **Python 3.10+** for the Qwen backend.
+
+**1. Frontend**
 
 ```bash
 npm install        # also installs the frontend workspace
-npm run dev        # start the dev server
-
-cd backend && .venv/bin/uvicorn main:app --port 8000
+npm run dev        # start the Vite dev server (http://localhost:5173)
 ```
 
-Open the Vite URL printed in the terminal (usually `http://localhost:5173`).
+**2. Backend** (powers the "Solve my cube (Qwen)" / "Lesson from my cube" features)
 
-That's the whole setup — no API keys or backend needed yet.
+```bash
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+DASHSCOPE_API_KEY=sk-... .venv/bin/uvicorn main:app --port 8000
+```
+
+The backend narrates moves with Qwen via DashScope, so it needs a
+`DASHSCOPE_API_KEY` (an OpenAI-compatible Alibaba Cloud key). Put it in a
+`.env` file at the repo root or export it as shown above.
+
+The default model `qwen3.7-plus` is a reasoning model (~33s per frame). For
+much faster narration, set `QWEN_MODEL=qwen-plus`.
+
+Open the Vite URL printed in the terminal (usually `http://localhost:5173`).
+You can drive the cube and take the hand-authored lessons without the backend;
+the Qwen-powered generate features need it running.
 
 ### Other commands
 

@@ -5,11 +5,14 @@
   import { profileStore } from '../stores/profile.svelte';
   import { generateWalkthrough } from '../api/narrate';
   import type { CubeletType } from '../scene/cubelets';
+  import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   let { onPlay, onSelectWalkthrough }: { onPlay?: () => void; onSelectWalkthrough?: () => void } = $props();
 
   let generating = $state(false);
   let generateStatus = $state('');
+
+  let BASE_URL = PUBLIC_BACKEND_URL;
 
   const HIGHLIGHTS: { type: CubeletType | null; label: string }[] = [
     { type: 'center', label: 'Centres' },
@@ -58,7 +61,7 @@
         state: cubeStore.getState(),
         level: profileStore.profile.level,
         method: profileStore.profile.method,
-        history: profileStore.profile.history,
+        memory: profileStore.memoryDigest(),
         onProgress: (done, total) => {
           generateStatus = `Generating narration… beat ${done} of ${total}`;
         }

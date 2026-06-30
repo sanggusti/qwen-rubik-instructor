@@ -32,7 +32,7 @@
         state: cubeStore.getState(),
         level: profileStore.profile.level,
         method: profileStore.profile.method,
-        history: profileStore.profile.history,
+        memory: profileStore.memoryDigest(),
         onProgress: (done, total) => {
           generateStatus = `Generating… step ${done} of ${total}`;
         }

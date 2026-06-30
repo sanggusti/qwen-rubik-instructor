@@ -81,6 +81,211 @@ export const LESSON_CATALOG: Lesson[] = [
         ]
     },
     {
+        id: 'lbl-cross',
+        track: 'beginner',
+        stage: 'cross',
+        title: 'Step 1 — The white cross',
+        audience: 'Beginners ready to start solving, layer by layer (LBL).',
+        description:
+            'The first step of every solve is a cross of edges on one face. The big idea: bring an edge to the top, then drop it straight down into place.',
+        steps: [
+            {
+                id: 'lbl-cross-idea',
+                title: 'What the cross is',
+                body:
+                    'Pick a colour (white is traditional) and build a plus-sign of its four edges, each also matching the centre next to it. Edges only — corners come later. Press Mark complete when the idea is clear.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-cross-drop',
+                title: 'Drop an edge into the cross',
+                body:
+                    'Press Set up step to lift a cross edge to the top. Now turn that face twice (`F` then `F`) to drop the edge straight down into the cross. This is the core move of cross-building.',
+                setupMoves: ['F', 'F'],
+                expectedMoves: ['F', 'F'],
+                hints: ['Two turns of the same face — F then F.'],
+                validator: { type: 'moveSequence', moves: ['F', 'F'] }
+            }
+        ]
+    },
+    {
+        id: 'lbl-first-layer-corners',
+        track: 'beginner',
+        stage: 'first-layer-corners',
+        title: 'Step 2 — First-layer corners',
+        audience: 'Solvers who can build the cross and want to finish the first layer.',
+        description:
+            'With the cross done, slot the four corners of that face. Hold a corner above its spot and repeat the right-hand trigger until it drops in correctly.',
+        steps: [
+            {
+                id: 'lbl-flc-idea',
+                title: 'Position above the slot',
+                body:
+                    'A first-layer corner belongs between two centres. Put the corner in the top layer directly above the gap it needs to fill, then the trigger walks it down. Press Mark complete to try it.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-flc-insert',
+                title: 'Insert with R U R′ U′',
+                body:
+                    'Press Set up step to lift a corner out of place. Now do the trigger `R U R′ U′` to slot it back. Repeat the trigger until a corner is seated — here once is enough.',
+                setupMoves: ['U', 'R', "U'", "R'"],
+                expectedMoves: ['R', 'U', "R'", "U'"],
+                hints: ['Same trigger as before: R, U, R prime, U prime.'],
+                validator: { type: 'moveSequence', moves: ['R', 'U', "R'", "U'"] }
+            }
+        ]
+    },
+    {
+        id: 'lbl-middle-layer',
+        track: 'beginner',
+        stage: 'middle-layer',
+        title: 'Step 3 — Middle layer edges',
+        audience: 'Solvers with a finished first layer, ready for the second layer.',
+        description:
+            'Flip the cube so the solved layer is on the bottom, then send top-layer edges into the middle with a right-hand insertion algorithm.',
+        steps: [
+            {
+                id: 'lbl-mid-idea',
+                title: 'Find an edge with no yellow',
+                body:
+                    'Top edges that have no yellow belong in the middle layer. Line the edge up with its matching centre, then send it right or left. Press Mark complete to practise the right insert.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-mid-insert',
+                title: 'Right insert: U R U′ R′ U′ F′ U F',
+                body:
+                    'Press Set up step, then perform the right-hand insertion `U R U′ R′ U′ F′ U F` to place a middle-layer edge. Go slowly and watch the edge travel down.',
+                setupMoves: ["F'", "U'", 'F', 'U', 'R', 'U', "R'", "U'"],
+                expectedMoves: ['U', 'R', "U'", "R'", "U'", "F'", 'U', 'F'],
+                hints: ['It starts like a trigger (U R U′ R′) then adds U′ F′ U F.'],
+                validator: {
+                    type: 'moveSequence',
+                    moves: ['U', 'R', "U'", "R'", "U'", "F'", 'U', 'F']
+                }
+            }
+        ]
+    },
+    {
+        id: 'lbl-last-layer-cross',
+        track: 'beginner',
+        stage: 'last-layer-cross',
+        title: 'Step 4 — Last-layer cross',
+        audience: 'Solvers with two layers done, starting the final layer.',
+        description:
+            'Make a cross on the last face by orienting its edges. One short algorithm, applied one to three times, turns a dot or an L or a line into a full cross.',
+        steps: [
+            {
+                id: 'lbl-llc-idea',
+                title: 'Dot, L, or line',
+                body:
+                    'Look at the last-layer edges: you will see a dot, an L-shape, or a line. The same algorithm progresses each toward a cross. Press Mark complete to learn it.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-llc-do',
+                title: 'F R U R′ U′ F′',
+                body:
+                    'Press Set up step, then perform `F R U R′ U′ F′`. On a real solve you repeat it until the cross appears; here one application returns the cross.',
+                setupMoves: ['F', 'U', 'R', "U'", "R'", "F'"],
+                expectedMoves: ['F', 'R', 'U', "R'", "U'", "F'"],
+                hints: ['Front face wraps the trigger: F, then R U R′ U′, then F prime.'],
+                validator: { type: 'moveSequence', moves: ['F', 'R', 'U', "R'", "U'", "F'"] }
+            }
+        ]
+    },
+    {
+        id: 'lbl-ll-corner-position',
+        track: 'beginner',
+        stage: 'll-corner-position',
+        title: 'Step 5 — Place the last corners',
+        audience: 'Solvers with the last-layer cross done.',
+        description:
+            'Move the last-layer corners to their correct spots (ignore twist for now). The algorithm cycles three corners until each is home.',
+        steps: [
+            {
+                id: 'lbl-llcp-idea',
+                title: 'Right place, any twist',
+                body:
+                    'A corner is "placed" when its three colours match the three faces around its spot, even if it is twisted. Find one already-placed corner and cycle the rest. Press Mark complete to practise.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-llcp-do',
+                title: 'U R U′ L′ U R′ U′ L',
+                body:
+                    'Press Set up step, then perform the corner cycle `U R U′ L′ U R′ U′ L` to send the corners to their homes.',
+                setupMoves: ["L'", 'U', 'R', "U'", 'L', 'U', "R'", "U'"],
+                expectedMoves: ['U', 'R', "U'", "L'", 'U', "R'", "U'", 'L'],
+                hints: ['Alternates the R and L sides around U turns.'],
+                validator: {
+                    type: 'moveSequence',
+                    moves: ['U', 'R', "U'", "L'", 'U', "R'", "U'", 'L']
+                }
+            }
+        ]
+    },
+    {
+        id: 'lbl-ll-corner-orientation',
+        track: 'beginner',
+        stage: 'll-corner-orientation',
+        title: 'Step 6 — Twist the last corners',
+        audience: 'Solvers whose last corners are placed but not yet oriented.',
+        description:
+            'Twist each misoriented corner into place with R′ D′ R D, repeated. The cube looks scrambled mid-step — keep going and it snaps back.',
+        steps: [
+            {
+                id: 'lbl-llco-idea',
+                title: 'One corner at a time',
+                body:
+                    'Hold the cube so a corner that needs twisting is at the top-front-right. Repeat R′ D′ R D (usually two or four times) until that one corner shows the right colour on top, then turn only the top to bring the next corner there. Press Mark complete to try one.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-llco-do',
+                title: "R′ D′ R D",
+                body:
+                    'Press Set up step, then perform `R′ D′ R D` to twist a corner back. Trust the process — this short cycle is the whole trick.',
+                setupMoves: ["D'", "R'", 'D', 'R'],
+                expectedMoves: ["R'", "D'", 'R', 'D'],
+                hints: ['Four quarter-turns: R prime, D prime, R, D.'],
+                validator: { type: 'moveSequence', moves: ["R'", "D'", 'R', 'D'] }
+            }
+        ]
+    },
+    {
+        id: 'lbl-last-layer-edges',
+        track: 'beginner',
+        stage: 'last-layer-edges',
+        title: 'Step 7 — Place the last edges',
+        audience: 'Solvers one step from a finished cube.',
+        description:
+            'The corners are done; only the last-layer edges remain. A slice algorithm cycles them into place to finish the solve.',
+        steps: [
+            {
+                id: 'lbl-lle-idea',
+                title: 'The final cycle',
+                body:
+                    'If the edges are swapped opposite each other, the H-permutation cycles them home in one go. Press Mark complete to learn it.',
+                validator: { type: 'manual' }
+            },
+            {
+                id: 'lbl-lle-do',
+                title: 'M2 U M2 U2 M2 U M2',
+                body:
+                    'Press Set up step, then perform the H-perm `M2 U M2 U2 M2 U M2` (each M2 is two M slices) to finish the cube. The middle slice does the work.',
+                setupMoves: ['M', 'M', "U'", 'M', 'M', 'U', 'U', 'M', 'M', "U'", 'M', 'M'],
+                expectedMoves: ['M', 'M', 'U', 'M', 'M', 'U', 'U', 'M', 'M', 'U', 'M', 'M'],
+                hints: ['M2 means two M slice turns; the U turns separate them.'],
+                validator: {
+                    type: 'moveSequence',
+                    moves: ['M', 'M', 'U', 'M', 'M', 'U', 'U', 'M', 'M', 'U', 'M', 'M']
+                }
+            }
+        ]
+    },
+    {
         id: 'time-right-hand-trigger',
         track: 'time-improvement',
         title: 'Smooth right-hand trigger',

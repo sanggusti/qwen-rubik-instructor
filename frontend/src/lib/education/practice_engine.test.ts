@@ -1,7 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { PracticeEngine, type PracticeApi, type PracticeState, type PracticeView } from './practice_engine';
 import type { Drill } from './practice_types';
+import type { StorageLike } from './lesson_progress';
 import { solvedState, applyMove, isSolved, cloneState, type State } from '../cube/state';
+
+function fakeStorage(): StorageLike {
+    const map = new Map<string, string>();
+    return {
+        getItem: (k) => (map.has(k) ? map.get(k)! : null),
+        setItem: (k, v) => void map.set(k, v),
+        removeItem: (k) => void map.delete(k)
+    };
+}
+
+function loadPerf(storage: StorageLike, stage: string) {
+    return JSON.parse(storage.getItem('rubik-profile') ?? '{}').performance?.[stage];
+}
 
 // A fake cube API backed by the real logical state. applyMoves mutates the
 // state and fires onMove for each accepted move, mirroring window.rubikInstructor.
@@ -195,5 +209,30 @@ describe('PracticeEngine timing', () => {
         if (s.drill === null) throw new Error('expected a drill');
         expect(s.startedAt).toBeNull();
         expect(s.solveMs).toBeNull();
+    });
+});
+
+describe('PracticeEngine performance signals', () => {
+    it('records a clean completion as mastered', () => {
+        const { api, user } = fakeApi();
+        const store = fakeStorage();
+        const engine = new PracticeEngine(api, [{ ...DRILLS[0], rounds: 1 }], () => 2000, store);
+        engine.selectDrill('sexy');
+        user('R', 'U', "R'", "U'");
+        const perf = loadPerf(store, 'sexy');
+        expect(perf.attempts).toBe(1);
+        expect(perf.mastered).toBe(true);
+    });
+
+    it('counts wrong moves as mistakes', () => {
+        const { api, user } = fakeApi();
+        const store = fakeStorage();
+        const engine = new PracticeEngine(api, [{ ...DRILLS[0], rounds: 1 }], () => 2000, store);
+        engine.selectDrill('sexy');
+        user('D', 'D'); // two off-track moves
+        user('R', 'U', "R'", "U'"); // restart and complete
+        const perf = loadPerf(store, 'sexy');
+        expect(perf.mistakes).toBeGreaterThanOrEqual(2);
+        expect(perf.mastered).toBe(false);
     });
 });

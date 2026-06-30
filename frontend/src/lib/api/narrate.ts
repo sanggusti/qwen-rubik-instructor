@@ -7,7 +7,7 @@ import { PUBLIC_BACKEND_URL } from '$env/static/public';
 import type { State } from '../cube/state';
 import type { Walkthrough, Beat } from '../education/walkthrough';
 import type { Lesson, LessonStep } from '../education/lesson_types';
-import type { Level, Method, HistoryEntry } from '../education/profile';
+import type { Level, Method, MemoryDigest } from '../education/profile';
 
 const BASE_URL = PUBLIC_BACKEND_URL;
 
@@ -17,8 +17,8 @@ export interface GenerateOptions {
   /** Learner persona — personalises method, narration, and pacing. */
   level?: Level;
   method?: Method;
-  /** Compact recent activity for session continuity. */
-  history?: HistoryEntry[];
+  /** Compact performance summary so Qwen can remember and adapt. */
+  memory?: MemoryDigest;
   /** Called as each beat/step arrives, for progress UI. */
   onProgress?: (done: number, total: number) => void;
 }
@@ -29,7 +29,7 @@ function requestBody(opts: GenerateOptions): Record<string, unknown> {
     state: opts.state,
     level: opts.level,
     method: opts.method,
-    history: opts.history
+    memory: opts.memory
   };
 }
 
@@ -84,6 +84,35 @@ function requireMeta(event: Record<string, unknown>, kind: MetaEvent['kind']): M
     throw new Error('Unexpected response from backend (no matching meta event)');
   }
   return event as unknown as MetaEvent;
+}
+
+export interface AskOptions {
+  question: string;
+  /** The stage the learner is on, and the moves in play — used to ground the answer. */
+  stage?: string;
+  moves?: string[];
+  level?: Level;
+  memory?: MemoryDigest;
+}
+
+// Ask Qwen a free-form question about the current step. Non-streaming: the
+// backend grounds the answer in the moves in play and returns one short reply.
+export async function askQwen(opts: AskOptions): Promise<string> {
+  const res = await fetch(`${BASE_URL}/ask`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts)
+  });
+  if (!res.ok) {
+    let detail = `Backend returned ${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return ((await res.json()) as { text: string }).text;
 }
 
 export async function generateWalkthrough(opts: GenerateOptions): Promise<Walkthrough> {

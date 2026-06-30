@@ -6,7 +6,7 @@ import random
 import pytest
 
 from pipeline.cube.facelet import apply_move, apply_moves, clone_state, is_solved, solved_state
-from pipeline.cube.notation import is_valid_move
+from pipeline.cube.notation import ROTATIONS, is_valid_move, optimize_solution
 from pipeline.solver import solve
 
 FACE_MOVES = ["U", "U'", "D", "D'", "L", "L'", "R", "R'", "F", "F'", "B", "B'"]
@@ -28,6 +28,9 @@ def test_solver_solves_random_scrambles(seed):
     work = clone_state(state)
     apply_moves(work, solution)
     assert is_solved(work), f"seed {seed} not solved"
+    # The optimizer eliminates every whole-cube rotation so a learner never has
+    # to reorient the cube mid-solve.
+    assert not any(m in ROTATIONS for m in solution), f"seed {seed} kept a rotation"
 
 
 def test_solver_emits_only_valid_single_turns():
@@ -53,3 +56,24 @@ def test_already_solved_cube():
     work = solved_state()
     apply_moves(work, solution)
     assert is_solved(work)
+
+
+def test_optimize_solution_drops_rotations_preserving_effect():
+    # A staged sequence that includes whole-cube rotations and a redundant pair.
+    stages = [["x", "R", "R'", "U"], ["z", "F", "F", "F"]]
+    flat_before = [m for s in stages for m in s]
+    optimized = optimize_solution(stages)
+    flat_after = [m for s in optimized for m in s]
+
+    # No rotations survive, and the cleanup shrank it (R R' cancels, F F F -> F').
+    assert not any(m in ROTATIONS for m in flat_after)
+    assert len(flat_after) < len(flat_before)
+
+    # Net cube effect is unchanged up to final orientation: the optimizer pushes
+    # the dropped rotations to the end, so the rotation-free version followed by
+    # those rotations (in order) reproduces the original exactly.
+    original = solved_state()
+    apply_moves(original, flat_before)
+    rewritten = solved_state()
+    apply_moves(rewritten, flat_after + ["x", "z"])
+    assert original == rewritten

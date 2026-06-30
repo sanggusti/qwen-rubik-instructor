@@ -9,10 +9,11 @@ where the LLM remembers how you're doing and adapts.
 The work landed in five incremental phases on 2026-06-29, followed by two
 focused fixes (Parts 4–5) on the same headline feature, a pivot (Part 6) to make
 the memory good enough for the **Qwen Cloud Hackathon → MemoryAgent track**, and a
-cynical QA pass (Part 7) that caught the grader scoring the wrong thing. Every
-phase shipped with tests; the current state is backend 703 tests, frontend 193
-tests, all green, plus live model calls and in-browser checks confirming the
-end-to-end loop.
+cynical QA pass (Part 7) that caught the grader scoring the wrong thing. On
+2026-06-30 the front end was rewritten onto SvelteKit (Part 8) and a QA pass on
+the live app found and fixed why narration felt slow (Part 9). Every phase shipped
+with tests; the current state is backend 709 tests, frontend 202 tests, all green,
+plus live model calls and in-browser checks confirming the end-to-end loop.
 
 ## The posts
 
@@ -56,17 +57,31 @@ end-to-end loop.
    state, a `cubeState` validator that carries each stage's target, and a
    "run it and look" verification that hit a frozen-`requestAnimationFrame` wall.
 
+8. **[From a Vite SPA to SvelteKit: a rewrite the engines made safe](./08-from-vite-spa-to-sveltekit-a-rewrite-the-engines-made-safe.md)**
+   The vanilla-TS front end was rewritten onto SvelteKit + Threlte. Why it was
+   cheap — the framework-agnostic cube model and learning engines ported verbatim,
+   so only the *skin* changed — and the three rocks the post-merge bring-up tripped
+   on: a ghost `node_modules`, Node in the unsupported version gap, and a strict
+   `$env/static/public` import with no value.
+
+9. **[The narration that felt slow: measure before you fix](./09-the-narration-that-felt-slow-measure-before-you-fix.md)**
+   "Qwen narration takes too long," with no instrument to confirm it. Adding
+   per-call latency + token logging surfaced two unrelated causes — a reasoning
+   model defaulted-on (~33s/frame), and an SSE stream that `list(pool.map(...))`
+   quietly turned into a wait-for-everything barrier. A model default and `submit`
+   instead of `map`; first beat now lands in ~1s.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-8. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
-   service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
-   services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-9. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
-   client-side memory lives.
-10. **The 3-minute demo** — the cross-session memory loop, end to end.
+10. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
+    service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
+    services in use. Today the only Alibaba usage is the DashScope call to Qwen.
+11. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
+    client-side memory lives.
+12. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## The throughline
 

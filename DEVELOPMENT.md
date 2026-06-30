@@ -40,9 +40,9 @@ DASHSCOPE_API_KEY=sk-... .venv/bin/uvicorn main:app --port 8000
 ```
 
 - The frontend talks to `http://localhost:8000` by default; override with
-  `VITE_BACKEND_URL`.
-- Default model `qwen3.7-plus` is a *reasoning* model (~33s/frame). For ~6×
-  faster narration set `QWEN_MODEL=qwen-plus`.
+  `PUBLIC_BACKEND_URL` (set in `frontend/.env`).
+- Default model `qwen-plus` narrates fast (~5s/frame). For ~6× slower but
+  deeper *reasoning* narration set `QWEN_MODEL=qwen3.7-plus`.
 - DashScope is OpenAI-compatible; the client points at the intl base URL in
   `backend/config.py`.
 

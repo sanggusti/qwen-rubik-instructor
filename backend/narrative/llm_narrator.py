@@ -7,6 +7,8 @@ a deterministic template so a frame never blocks the stream.
 
 from __future__ import annotations
 
+import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterator, Optional, Tuple
@@ -19,6 +21,10 @@ from narrative.validator import parse_narration, validate_narration
 from pipeline.cube.facelet import is_solved
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "output_contracts.txt"
+
+# Latency/token telemetry for the Qwen calls. Configured to actually print by
+# main.py's logging.basicConfig; see config.qwen_model for the model in use.
+log = logging.getLogger("narration")
 
 TONES = ["warm and encouraging", "calm and precise", "playful and energetic"]
 
@@ -87,11 +93,23 @@ def get_client() -> OpenAI:
 
 
 def _complete(client: OpenAI, model: str, messages: list[dict]) -> str:
+    t0 = time.perf_counter()
     resp = client.chat.completions.create(
         model=model,
         messages=messages,
         response_format={"type": "json_object"},
         temperature=0.7,
+    )
+    latency = time.perf_counter() - t0
+    # DashScope's OpenAI-compatible endpoint returns usage; guard in case it's absent.
+    usage = getattr(resp, "usage", None)
+    log.info(
+        "qwen_call model=%s latency=%.2fs prompt_tokens=%s completion_tokens=%s total_tokens=%s",
+        model,
+        latency,
+        getattr(usage, "prompt_tokens", None),
+        getattr(usage, "completion_tokens", None),
+        getattr(usage, "total_tokens", None),
     )
     return resp.choices[0].message.content or ""
 
@@ -245,13 +263,16 @@ def answer_question(
         {"role": "user", "content": build_ask_message(
             question, stage=stage, moves=moves, level=level, memory=memory, state=state)},
     ]
+    t0 = time.perf_counter()
     try:
         content = _complete(client, model, messages)
         text = parse_narration(content).text.strip()
         if text:
+            log.info("ask model=%s wall=%.2fs fallback=False", model, time.perf_counter() - t0)
             return text, False
     except Exception:
         pass
+    log.info("ask model=%s wall=%.2fs fallback=True", model, time.perf_counter() - t0)
     return ("Take it one move at a time, and use Show next move if you get stuck.", True)
 
 
@@ -285,14 +306,32 @@ def narrate_plan(
             extra.append(welcome)
         return _within_budget(" ".join(extra))
 
+    latencies: list[Tuple[float, bool]] = []  # (per-frame seconds, used_fallback)
+
     def run(i: int, frame: VisualFrame) -> Tuple[FrameNarration, bool]:
-        return narrate_frame(
+        t0 = time.perf_counter()
+        result = narrate_frame(
             plan, frame, client=client, model=model, tone=tone, level=level,
             continuity=continuity_for(i, frame),
         )
+        latencies.append((time.perf_counter() - t0, result[1]))
+        return result
 
     workers = max(1, min(settings.narration_workers, len(plan.frames)))
+    plan_t0 = time.perf_counter()
+    # Submit every frame up front, then yield in frame order as each future
+    # resolves. Frames still narrate concurrently, but the first beat/step now
+    # streams out as soon as it's ready instead of waiting for the whole plan.
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda pair: run(*pair), enumerate(plan.frames)))
-    for frame, (narration, used_fallback) in zip(plan.frames, results):
-        yield frame, narration, used_fallback
+        futures = [pool.submit(run, i, frame) for i, frame in enumerate(plan.frames)]
+        for frame, future in zip(plan.frames, futures):
+            narration, used_fallback = future.result()
+            yield frame, narration, used_fallback
+    if latencies:
+        frame_seconds = [d for d, _ in latencies]
+        fallbacks = sum(1 for _, f in latencies if f)
+        log.info(
+            "narrate_plan model=%s kind=%s frames=%d wall=%.2fs slowest_frame=%.2fs fallbacks=%d/%d",
+            model, plan.kind, len(plan.frames), time.perf_counter() - plan_t0,
+            max(frame_seconds), fallbacks, len(plan.frames),
+        )

@@ -1,5 +1,8 @@
 <script lang="ts">
   import { lessonStore } from '../stores/lesson.svelte';
+  import { cubeStore } from '../stores/cube.svelte';
+  import { profileStore } from '../stores/profile.svelte';
+  import { generateLesson } from '../api/narrate';
   import type { LessonTrack } from '../education/lesson_types';
 
   let { onSelect }: { onSelect?: () => void } = $props();
@@ -10,6 +13,8 @@
   ];
 
   let track = $state<LessonTrack>('beginner');
+  let generating = $state(false);
+  let generateStatus = $state('');
 
   const lessons = $derived(lessonStore.getLessons(track));
   const snapshot = $derived(lessonStore.snapshot);
@@ -17,6 +22,34 @@
   function selectLesson(id: string): void {
     lessonStore.selectLesson(id);
     onSelect?.();
+  }
+
+  async function runGenerate(): Promise<void> {
+    generating = true;
+    generateStatus = 'Asking Qwen to build a lesson…';
+    try {
+      const lesson = await generateLesson({
+        state: cubeStore.getState(),
+        level: profileStore.profile.level,
+        method: profileStore.profile.method,
+        history: profileStore.profile.history,
+        onProgress: (done, total) => {
+          generateStatus = `Generating… step ${done} of ${total}`;
+        }
+      });
+      lessonStore.loadGenerated(lesson);
+      profileStore.appendHistory({
+        kind: 'lesson',
+        method: profileStore.profile.method,
+        stages: lesson.steps.length,
+        at: new Date().toISOString()
+      });
+      onSelect?.();
+    } catch (err) {
+      generateStatus = `Couldn't generate: ${(err as Error).message}`;
+    } finally {
+      generating = false;
+    }
   }
 </script>
 
@@ -31,6 +64,15 @@
     </button>
   {/each}
 </div>
+
+<div class="lsn-actions">
+  <button type="button" class="lsn-btn" disabled={generating} onclick={runGenerate}>
+    {generating ? 'Generating…' : 'Lesson from my cube (Qwen)'}
+  </button>
+</div>
+{#if generateStatus}
+  <p class="lsn-hint">{generateStatus}</p>
+{/if}
 
 <div class="lsn-list">
   {#each lessons as lesson (lesson.id)}

@@ -1,6 +1,6 @@
 # Frontend Revamp: SvelteKit + Threlte
 
-Status: **proposal — not yet implemented**
+Status: **implemented — all 6 phases done** ([§12](#12-phased-rollout))
 Scope: `frontend/` only. No changes to `backend/`.
 
 ## 1. Goals
@@ -86,11 +86,13 @@ replaces.
 
 ## 6. New directory structure
 
-> **Staging note (added during Phase 1):** this tree is built incrementally
-> in a sibling directory, `frontend-sveltekit/`, so the working vanilla app
-> in `frontend/` keeps running untouched until the Phase 6 cutover swaps it
-> in. Paths below are written as their final `frontend/...` form; during
-> Phases 1–5 read every `frontend/` path as `frontend-sveltekit/`.
+> **Staging note (added during Phase 1, resolved at Phase 6):** this tree was
+> built incrementally in a sibling directory, `frontend-sveltekit/`, so the
+> working vanilla app in `frontend/` kept running untouched until the Phase 6
+> cutover swapped it in (`git rm -r frontend && git mv frontend-sveltekit
+> frontend`). Paths below were written as their final `frontend/...` form
+> throughout; that form is now literal — `frontend-sveltekit/` no longer
+> exists.
 
 ```
 frontend/
@@ -566,14 +568,73 @@ flush at the bottom on mobile rather than floating mid-screen.
       with no overlap and no text overflow. `npm run check` and `npm run
       test` stayed clean throughout.
 
-### Phase 6 — Backend wiring + cutover
-- [ ] Port `narrate.ts` (SSE client, unchanged parsing logic)
-- [ ] Switch `VITE_BACKEND_URL` → `PUBLIC_BACKEND_URL` (`$env/static/public`)
-- [ ] Confirm `backend/config.py`'s `cors_origins` still matches the SvelteKit dev port
-- [ ] Update root `package.json` scripts if SvelteKit's script names differ from today's `dev`/`build`/`preview`/`test`
-- [ ] Remove the old vanilla `frontend/src/*` tree
-- [ ] Update the root [README](../../README.md)'s "How it works" section/tree
-- [ ] **Verify:** lesson/walkthrough generation streams end-to-end against the existing FastAPI backend with no backend changes
+### Phase 6 — Backend wiring + cutover ✅ done
+- [x] Ported `lib/api/narrate.ts` (SSE client, unchanged parsing/streaming logic) —
+      same manual `fetch` + `ReadableStream` frame parser as the legacy
+      `education/remote_content.ts`, only the import paths and the env-var
+      source changed.
+- [x] Switched `VITE_BACKEND_URL` → `PUBLIC_BACKEND_URL` via `$env/static/public`
+      (per §10) — added `frontend/.env.example` (committed) and a local
+      `frontend/.env` (gitignored), both setting
+      `PUBLIC_BACKEND_URL=http://localhost:8000`, since `$env/static/public`
+      requires the named export to exist at build time (unlike the old
+      `import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:8000'` runtime
+      fallback).
+- [x] Wired the previously-deferred "Lesson/Solve from my cube (Qwen)" buttons
+      (flagged as Phase 6 scope by Phase 4's note) into `LessonsPanel.svelte`
+      and `ExplorePanel.svelte`, ported from the legacy `ui/lessons_panel.ts` /
+      `ui/explore_panel.ts` button+status-text pattern: `cubeStore.getState()`
+      + `profileStore.profile` (level/method/history) feed `generateLesson`/
+      `generateWalkthrough`, progress streams into a status paragraph, and on
+      success the result is handed to `lessonStore.loadGenerated` /
+      `walkthroughStore.loadGenerated` (both pre-existing pass-throughs to the
+      ported engines' `loadGenerated`, unused until now) plus
+      `profileStore.appendHistory`. Matching the legacy `hud.close()`-only-on-success
+      timing, the panel calls its existing `onSelect`/`onPlay` collapse
+      callback only after a successful generate, not on error — no new prop
+      needed since opening either tab already runs `onOpenExperience` and closes
+      other experiences. Practice was intentionally left alone — the legacy
+      `ui/practice_panel.ts` never had Qwen wiring either.
+- [x] Confirmed `backend/config.py`'s `cors_origins = ["http://localhost:5173"]`
+      still matches: SvelteKit's Vite dev server defaults to 5173, confirmed
+      live during the verify step below.
+- [x] Root `package.json`'s `dev`/`build`/`preview`/`test` scripts needed no
+      changes — `frontend-sveltekit/package.json` already used the same script
+      names (`npm --prefix frontend run X` resolves the same either way); only
+      its `name` field (`frontend-sveltekit` → `frontend`) was updated for
+      cleanliness post-rename.
+- [x] Removed the old vanilla `frontend/` tree (`git rm -r frontend`, tree was
+      committed/clean so fully recoverable from history) and renamed
+      `frontend-sveltekit/` → `frontend/` via `git mv` (user confirmed this
+      naming over keeping the `frontend-sveltekit` name, to match §6's final
+      path layout). Also deleted `frontend/src/lib/vitest-examples/` (unused
+      `sv create`/vitest scaffold boilerplate, never referenced by app code).
+- [x] Updated the root [README](../../README.md)'s "How it works" section/tree
+      to the SvelteKit `routes/` + `lib/*` layout (§6), noted the cube API now
+      lives at `lib/stores/cube.svelte.ts`, and documented the new Qwen
+      generate entry points (`lib/api/narrate.ts` streaming from
+      `/narrate/lesson` / `/narrate/walkthrough`). Also lightly updated the
+      "What you can do today" bullets and the Roadmap's first bullet to reflect
+      that cube-driven Qwen generation now ships (catalog/practice/topic-based
+      generation remain future work).
+- [x] **Verify:** `npm run check` (0 errors) and `npm run test` (145 tests, 14
+      files) clean in the renamed `frontend/`. Stood up a real backend
+      (`python3 -m venv backend/.venv && pip install -r requirements.txt`,
+      `uvicorn main:app --port 8000`, repo-root `.env` holding a real
+      `DASHSCOPE_API_KEY`) alongside the SvelteKit dev server, then drove the
+      actual UI with Playwright end-to-end: clicked "Lesson from my cube
+      (Qwen)" in the Lessons modal, watched the status text progress
+      ("step 1 of 6" → "step 6 of 6") as the backend streamed real Qwen-narrated
+      `/narrate/lesson` SSE frames, confirmed the generated lesson
+      ("Solve your cube, step by step") appeared in the catalog list, became
+      the selected/active lesson with real narration and a coaching hint, and
+      the Stage Caption updated live. Repeated the same flow for "Solve my
+      cube (Qwen)" in the Explore modal against `/narrate/walkthrough`
+      (6 beats, ~30s/beat), confirming the generated walkthrough
+      ("Watch the full solve") loaded and the Stage Caption updated. Both
+      flows matched the legacy main.ts's exact behavior: the generate button
+      disables and shows live progress text during streaming, and the modal
+      only auto-collapses after a successful load.
 
 ## 13. Risks / open questions
 

@@ -3,14 +3,13 @@
 // existing engines can play. EventSource is GET-only, so we read the fetch body
 // stream and parse `data: ...` frames by hand.
 
-import type { State } from '../core/state';
-import type { Walkthrough, Beat } from './walkthrough';
-import type { Lesson, LessonStep } from './lesson_types';
-import type { Level, Method, HistoryEntry } from './profile';
+import { PUBLIC_BACKEND_URL } from '$env/static/public';
+import type { State } from '../cube/state';
+import type { Walkthrough, Beat } from '../education/walkthrough';
+import type { Lesson, LessonStep } from '../education/lesson_types';
+import type { Level, Method, HistoryEntry } from '../education/profile';
 
-const BASE_URL =
-  ((import.meta as { env?: Record<string, string | undefined> }).env?.VITE_BACKEND_URL) ??
-  'http://localhost:8000';
+const BASE_URL = PUBLIC_BACKEND_URL;
 
 export interface GenerateOptions {
   topic?: string;

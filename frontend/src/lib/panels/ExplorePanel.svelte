@@ -1,9 +1,15 @@
 <script lang="ts">
   import { cubeViewStore } from '../stores/cube-view.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
+  import { cubeStore } from '../stores/cube.svelte';
+  import { profileStore } from '../stores/profile.svelte';
+  import { generateWalkthrough } from '../api/narrate';
   import type { CubeletType } from '../scene/cubelets';
 
   let { onPlay, onSelectWalkthrough }: { onPlay?: () => void; onSelectWalkthrough?: () => void } = $props();
+
+  let generating = $state(false);
+  let generateStatus = $state('');
 
   const HIGHLIGHTS: { type: CubeletType | null; label: string }[] = [
     { type: 'center', label: 'Centres' },
@@ -43,6 +49,34 @@
     walkthroughStore.play();
     onPlay?.();
   }
+
+  async function runGenerate(): Promise<void> {
+    generating = true;
+    generateStatus = 'Asking Qwen to plan your solve…';
+    try {
+      const wt = await generateWalkthrough({
+        state: cubeStore.getState(),
+        level: profileStore.profile.level,
+        method: profileStore.profile.method,
+        history: profileStore.profile.history,
+        onProgress: (done, total) => {
+          generateStatus = `Generating narration… beat ${done} of ${total}`;
+        }
+      });
+      walkthroughStore.loadGenerated(wt);
+      profileStore.appendHistory({
+        kind: 'walkthrough',
+        method: profileStore.profile.method,
+        stages: wt.beats.length,
+        at: new Date().toISOString()
+      });
+      onPlay?.();
+    } catch (err) {
+      generateStatus = `Couldn't generate: ${(err as Error).message}`;
+    } finally {
+      generating = false;
+    }
+  }
 </script>
 
 <div class="exp-head">
@@ -74,6 +108,14 @@
 </div>
 
 <div class="exp-section">Watch &amp; learn</div>
+<div class="exp-row">
+  <button type="button" class="exp-btn" disabled={generating} onclick={runGenerate}>
+    {generating ? 'Generating…' : 'Solve my cube (Qwen)'}
+  </button>
+</div>
+{#if generateStatus}
+  <p class="exp-hint">{generateStatus}</p>
+{/if}
 <div class="exp-list">
   {#each walkthroughs as w (w.id)}
     <button type="button" class="exp-item" class:is-active={snapshot.walkthrough?.id === w.id} onclick={() => selectWalkthrough(w.id)}>

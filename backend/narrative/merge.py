@@ -45,4 +45,5 @@ def step_from(frame: VisualFrame, narration: FrameNarration) -> LessonStep:
         expected_moves=frame.moves or None,
         hints=narration.hints or None,
         validator=validator,
+        highlight=frame.highlight,
     )

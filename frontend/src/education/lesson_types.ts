@@ -1,6 +1,7 @@
 export type LessonTrack = 'beginner' | 'time-improvement';
 
 import type { State } from '../core/state';
+import type { CubeletType } from '../scene/cube/cubelets';
 
 export type StepValidator =
     | { type: 'manual' }
@@ -18,6 +19,9 @@ export interface LessonStep {
     expectedMoves?: string[];
     hints?: string[];
     validator: StepValidator;
+    // Cubelet class to spotlight while this step is shown (e.g. 'edge' for the
+    // cross, 'corner' for corners). Null/absent restores full opacity.
+    highlight?: CubeletType;
 }
 
 export interface Lesson {

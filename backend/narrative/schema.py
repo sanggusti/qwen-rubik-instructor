@@ -82,6 +82,8 @@ class LessonStep(CamelModel):
     expected_moves: Optional[list[str]] = None
     hints: Optional[list[str]] = None
     validator: StepValidator
+    # Cubelet class to spotlight while this step is shown (cross edges, corners, …).
+    highlight: HighlightType = None
 
 
 class Lesson(CamelModel):

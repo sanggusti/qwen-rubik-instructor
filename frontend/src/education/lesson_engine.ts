@@ -3,7 +3,7 @@
 // after each cube move, persists progress, and notifies UI subscribers.
 
 import { Emitter } from '../core/events';
-import type { State } from '../core/state';
+import { invertMove, type State } from '../core/state';
 import type { Lesson, LessonStep, LessonTrack } from './lesson_types';
 import { validateStep } from './lesson_validator';
 import { buildCoachingMessages, trailingPrefixLength, type CoachingMessage } from './coaching';
@@ -16,6 +16,7 @@ export interface LessonApi {
     applyMoves(moves: string[] | string): { accepted: string[]; rejected: string[] };
     getState(): State;
     isSolved(): boolean;
+    reset(): void;
     onMove(fn: (move: string, state: State) => void): () => void;
 }
 
@@ -30,6 +31,8 @@ export interface LessonView {
     coachingMessages: CoachingMessage[];
     /** The single move the learner should make next, for the rescue button. */
     nextMove: string | null;
+    /** The learner's moves on this step so far (for the in-lesson history view). */
+    moveHistory: string[];
 }
 
 export type EngineState =
@@ -137,13 +140,41 @@ export class LessonEngine {
     }
 
     // The ordered moves this step is graded against, if any: a sequence step's
-    // own moves, or a solve stage's expectedMoves. Empty for manual/cubeSolved.
+    // own moves, or a solve/cubeSolved stage's expectedMoves. Empty for manual.
     private gradedMoves(): string[] {
         const step = this.getCurrentStep();
         if (!step) return [];
         if (step.validator.type === 'moveSequence') return step.validator.moves;
         if (step.validator.type === 'cubeState') return step.expectedMoves ?? [];
+        if (step.validator.type === 'cubeSolved') return step.expectedMoves ?? [];
         return [];
+    }
+
+    // Apply the single next expected move for the learner (the "Do next move"
+    // rescue). No-op when the step has no graded moves to fall back on.
+    doNextMove(): void {
+        const move = this.nextExpectedMove();
+        if (move) this.api.applyMoves([move]);
+    }
+
+    // Step the learner back through their own turns: drop the last recorded move
+    // and animate its inverse. The inverse is swallowed (pendingSetupMoves) so it
+    // doesn't re-enter the history or count as a move.
+    undoLastMove(): void {
+        if (!this.moveHistory.length) return;
+        const last = this.moveHistory.pop()!;
+        this.pendingSetupMoves += 1;
+        this.api.applyMoves([invertMove(last)]);
+        this.emit();
+    }
+
+    // Apply moves on the learner's behalf (e.g. a solver's "get unstuck" path)
+    // without counting them as the learner's turns — same swallow mechanism as
+    // setup. Used to demonstrate a recovery from the live cube state.
+    applyAssistMoves(moves: string[]): void {
+        if (!moves.length) return;
+        this.pendingSetupMoves += moves.length;
+        this.api.applyMoves(moves);
     }
 
     closeLesson(): void {
@@ -203,12 +234,28 @@ export class LessonEngine {
     // whenever a setup-bearing step becomes current (mirrors PracticeEngine), and
     // by the "Set up step" button for a fresh attempt. The pendingSetupMoves
     // counter swallows the resulting onMove callbacks so they don't count as the
-    // learner's own moves.
+    // learner's own moves. Setup assumes a solved start (it's the inverse of the
+    // algorithm), so we reset the cube first to clear any leftover scramble from
+    // an earlier step — otherwise the setup lands on the wrong state.
     applySetupMoves(): void {
         const step = this.getCurrentStep();
         if (!step?.setupMoves?.length) return;
+        this.api.reset(); // clears moveHistory + pendingSetupMoves via handleCubeReset
         this.pendingSetupMoves += step.setupMoves.length;
         this.api.applyMoves(step.setupMoves);
+    }
+
+    // Rescue: drop the learner's moves and rebuild the step's starting position
+    // (solved, then setup re-applied). Backs the "Reset moves" button.
+    resetStep(): void {
+        const step = this.getCurrentStep();
+        if (!step) return;
+        this.moveHistory = [];
+        this.stepMistakes = 0;
+        this.pendingSetupMoves = 0;
+        if (step.setupMoves?.length) this.applySetupMoves();
+        else this.api.reset();
+        this.emit();
     }
 
     applyExampleMoves(): void {
@@ -355,7 +402,8 @@ export class LessonEngine {
             stepCompleted,
             lessonCompleted,
             coachingMessages,
-            nextMove: this.nextExpectedMove()
+            nextMove: this.nextExpectedMove(),
+            moveHistory: this.moveHistory.slice()
         };
     }
 

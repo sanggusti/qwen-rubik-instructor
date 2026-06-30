@@ -4,6 +4,7 @@
 import type { LessonEngine, EngineState } from '../education/lesson_engine';
 import type { LessonTrack, Lesson } from '../education/lesson_types';
 import { loadProfile } from '../education/profile';
+import { isLessonComplete } from '../education/lesson_progress';
 import { recommendNext, reasonText, masteryBlocker } from '../education/recommendation';
 
 const TRACKS: { id: LessonTrack; label: string }[] = [
@@ -29,6 +30,9 @@ export class LessonsPanel {
     private readonly onSelect?: () => void;
     private readonly onGenerate?: (report: (done: number, total: number) => void) => Promise<void>;
     private readonly onAsk?: (req: AskContext) => Promise<string>;
+    // Animate the cube back to solved from its current state (the solver-backed
+    // "Get unstuck"). Resolves once the path has been queued.
+    private readonly onSolve?: () => Promise<void>;
     private track: LessonTrack = 'beginner';
     private unsubscribe: () => void;
     private generateRow?: HTMLDivElement;
@@ -46,12 +50,14 @@ export class LessonsPanel {
         engine: LessonEngine,
         onSelect?: () => void,
         onGenerate?: (report: (done: number, total: number) => void) => Promise<void>,
-        onAsk?: (req: AskContext) => Promise<string>
+        onAsk?: (req: AskContext) => Promise<string>,
+        onSolve?: () => Promise<void>
     ) {
         this.engine = engine;
         this.onSelect = onSelect;
         this.onGenerate = onGenerate;
         this.onAsk = onAsk;
+        this.onSolve = onSolve;
 
         this.el = document.createElement('div');
         this.el.id = 'lessons';
@@ -139,7 +145,6 @@ export class LessonsPanel {
         const active = this.engine.getCurrentLesson();
         // Beginner lessons unlock in order: a stage opens once the prior one has
         // been completed at least once, so the path is followed top to bottom.
-        const performance = loadProfile().performance;
         const gated = this.track === 'beginner';
 
         // The agent's decision from memory: surface one recommended next lesson at
@@ -174,8 +179,7 @@ export class LessonsPanel {
                 btn.addEventListener('click', () => this.requestSelect(lesson));
             }
             this.listEl.appendChild(btn);
-            const attempted = (performance[lesson.stage ?? lesson.id]?.attempts ?? 0) > 0;
-            prevDone = attempted;
+            prevDone = isLessonComplete(lesson.id);
         }
     }
 
@@ -321,6 +325,20 @@ export class LessonsPanel {
             this.detailEl.appendChild(moves);
         }
 
+        // Surface the learner's own turns on graded steps, so they can see what
+        // they've done versus the expected sequence above without opening the
+        // debug panel.
+        const graded =
+            step.validator.type === 'moveSequence' ||
+            step.validator.type === 'cubeState' ||
+            step.validator.type === 'cubeSolved';
+        if (graded && state.moveHistory.length) {
+            const yours = document.createElement('div');
+            yours.className = 'lsn-moves lsn-your-moves';
+            yours.textContent = `Your moves: ${state.moveHistory.join(' ')}`;
+            this.detailEl.appendChild(yours);
+        }
+
         const status = document.createElement('div');
         status.className = stepCompleted ? 'lsn-status done' : 'lsn-status';
         status.textContent = stepCompleted
@@ -364,13 +382,11 @@ export class LessonsPanel {
         }
         this.detailEl.appendChild(actions);
 
-        // Rescue: reveal just the single next move without playing the sequence.
-        // The revealed text persists until the learner's next move re-renders.
-        // Available on move-graded steps and solve stages (graded by cube state).
-        if (
-            (step.validator.type === 'moveSequence' || step.validator.type === 'cubeState') &&
-            !stepCompleted
-        ) {
+        // Rescue: reveal or perform the next move, and reset the learner's moves
+        // back to the step's starting position. The revealed text persists until
+        // the learner's next move re-renders. Available on any graded step that
+        // can go off-track (sequences, solve stages, and the solve-from-setup).
+        if (graded && !stepCompleted) {
             const rescue = document.createElement('div');
             rescue.className = 'lsn-actions';
             const revealed = document.createElement('span');
@@ -381,6 +397,22 @@ export class LessonsPanel {
                     revealed.textContent = move ? `Next move: ${move}` : 'You’re on the last move.';
                 })
             );
+            rescue.appendChild(this.button('Do next move', () => this.engine.doNextMove()));
+            rescue.appendChild(this.button('Undo', () => this.engine.undoLastMove()));
+            rescue.appendChild(this.button('Reset moves', () => this.engine.resetStep()));
+            if (this.onSolve) {
+                rescue.appendChild(
+                    this.button('Get unstuck', async () => {
+                        revealed.textContent = 'Solving from here…';
+                        try {
+                            await this.onSolve!();
+                            revealed.textContent = 'Played the solution — Reset moves to try again.';
+                        } catch (err) {
+                            revealed.textContent = `Couldn't solve: ${(err as Error).message}`;
+                        }
+                    })
+                );
+            }
             rescue.appendChild(revealed);
             this.detailEl.appendChild(rescue);
         }

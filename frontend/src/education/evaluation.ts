@@ -5,6 +5,7 @@
 import type { State } from '../core/state';
 import { isSolved } from '../core/state';
 import { endsWithMoves } from './lesson_validator';
+import { trailingPrefixLength } from './coaching';
 import type { Drill, EvaluationResult } from './practice_types';
 
 export function evaluate(drill: Drill, moveHistory: string[], state: State): EvaluationResult {
@@ -71,20 +72,4 @@ function evaluateSolved(state: State): EvaluationResult {
     return isSolved(state)
         ? { status: 'correct', message: 'Cube solved.' }
         : { status: 'progress', message: 'Keep going until the cube is solved.' };
-}
-
-// Length of the longest suffix of `history` that is a prefix of `expected`.
-function trailingPrefixLength(history: string[], expected: string[]): number {
-    const max = Math.min(history.length, expected.length);
-    for (let p = max; p > 0; p--) {
-        let ok = true;
-        for (let i = 0; i < p; i++) {
-            if (history[history.length - p + i] !== expected[i]) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) return p;
-    }
-    return 0;
 }

@@ -20,6 +20,7 @@ function fakeApi() {
         },
         getState: () => cloneState(state),
         isSolved: () => isSolved(state),
+        reset: () => { state = solvedState(); },
         onMove(fn) {
             subs.add(fn);
             return () => subs.delete(fn);
@@ -145,13 +146,13 @@ describe('LessonEngine', () => {
         const engine = new LessonEngine(api, LESSONS, storage);
         engine.selectLesson('l1');
         engine.markComplete(); // l1-seq
-        // Completes l1-seq -> l1-solved, whose setup ['R'] auto-applies on entry,
-        // so the cube is now scrambled by R U then the setup R (= R U R).
+        // Completes l1-seq -> l1-solved. Setup ['R'] resets the cube to solved
+        // first (clearing the R U residue), so it's exactly one turn from solved.
         user('R', 'U');
         expect(engine.getCurrentStep()?.id).toBe('l1-solved');
         expect(api.isSolved()).toBe(false);
 
-        user("R'", "U'", "R'"); // undo R U R -> solved
+        user("R'"); // undo the setup R -> solved
         expect(api.isSolved()).toBe(true);
 
         let lessonCompleted = false;
@@ -416,5 +417,76 @@ describe('LessonEngine rescue', () => {
         const engine = new LessonEngine(api, LESSONS, fakeStorage());
         engine.selectLesson('l1'); // first step is manual
         expect(engine.nextExpectedMove()).toBeNull();
+    });
+
+    it('doNextMove performs the next expected move for the learner', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        engine.doNextMove(); // applies R
+        expect(engine.nextExpectedMove()).toBe('U');
+        engine.doNextMove(); // applies U -> completes the single-step lesson
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(true);
+    });
+
+    it('undoLastMove reverts the cube and drops the move from history', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        user('R');
+        expect(engine.nextExpectedMove()).toBe('U'); // a correct prefix is in history
+        engine.undoLastMove();
+        expect(engine.nextExpectedMove()).toBe('R'); // history emptied
+        expect(api.isSolved()).toBe(true); // R then its inverse R' -> solved
+    });
+
+    it('applyAssistMoves does not count as the learner’s own moves', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        engine.applyAssistMoves(['R', 'U']); // performs the sequence as a demo
+        // Swallowed: history stays empty and the step is not auto-completed.
+        expect(engine.nextExpectedMove()).toBe('R');
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false);
+    });
+
+    it('exposes the learner move history in its snapshot', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        user('R');
+        let history: string[] = [];
+        engine.subscribe((s) => { history = s.lesson !== null ? s.moveHistory : []; });
+        expect(history).toEqual(['R']);
+    });
+});
+
+describe('LessonEngine setup state', () => {
+    it('resets the cube before setup so a prior step leaves no residue', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, LESSONS, fakeStorage());
+        engine.selectLesson('l1');
+        engine.markComplete(); // l1-seq
+        user('R', 'U'); // completes l1-seq, enters l1-solved (setup ['R'])
+        // Setup reset the R U residue, so the cube is exactly one R from solved.
+        user("R'");
+        expect(api.isSolved()).toBe(true);
+    });
+
+    it('resetStep rebuilds the step start and drops the learner moves', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, LESSONS, fakeStorage());
+        engine.selectLesson('l1');
+        engine.markComplete();
+        user('R', 'U'); // enter l1-solved; cube is one R from solved
+        user('U'); // a wrong move
+        expect(api.isSolved()).toBe(false);
+        engine.resetStep(); // back to the setup position (solved + R)
+        user("R'"); // the correct undo now solves it
+        expect(api.isSolved()).toBe(true);
     });
 });

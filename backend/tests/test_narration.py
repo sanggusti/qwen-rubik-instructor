@@ -93,16 +93,11 @@ def test_first_response_valid(monkeypatch):
     assert not used_fallback and stub.calls == 1
 
 
-def test_reprompt_then_valid(monkeypatch):
-    bad = "not json"
-    good = json.dumps({"text": "Perform it slowly."})
-    narration, used_fallback, stub = _run(monkeypatch, [bad, good])
-    assert not used_fallback and stub.calls == 2
-
-
-def test_falls_back_after_two_failures(monkeypatch):
-    narration, used_fallback, stub = _run(monkeypatch, ["bad", "still bad"])
-    assert used_fallback and narration.text
+def test_invalid_response_falls_back_single_attempt(monkeypatch):
+    # Narration is a single attempt (no re-prompt): an invalid response falls
+    # straight back to deterministic text rather than holding up the stream.
+    narration, used_fallback, stub = _run(monkeypatch, ["not json"])
+    assert used_fallback and narration.text and stub.calls == 1
 
 
 def test_falls_back_on_exception(monkeypatch):
@@ -133,6 +128,7 @@ class _Capture:
 def test_memory_digest_personalises_first_frame(monkeypatch):
     cap = _Capture()
     monkeypatch.setattr(llm_narrator, "_complete", cap)
+    monkeypatch.setattr(settings, "narration_workers", 1)  # deterministic capture order
     plan = build_topic_lesson("sune")
     memory = {
         "sessions": 3,
@@ -149,6 +145,7 @@ def test_memory_digest_personalises_first_frame(monkeypatch):
 def test_stage_struggle_note_targets_matching_stage(monkeypatch):
     cap = _Capture()
     monkeypatch.setattr(llm_narrator, "_complete", cap)
+    monkeypatch.setattr(settings, "narration_workers", 1)  # deterministic capture order
     s = solved_state()
     apply_moves(s, "R U F D L B".split())
     plan = build_solve_walkthrough(s)
@@ -165,7 +162,61 @@ def test_no_memory_means_no_continuity(monkeypatch):
     monkeypatch.setattr(llm_narrator, "_complete", cap)
     plan = build_topic_lesson("sune")
     list(llm_narrator.narrate_plan(plan, client=None, model="x", memory=None))
-    assert "recent session" not in cap.user_messages[0]
+    assert all("recent session" not in m for m in cap.user_messages)
+
+
+class _StageEcho:
+    """Stub _complete that echoes each frame's stage, so order can be checked."""
+
+    def __call__(self, client, model, messages):
+        stage = ""
+        for line in messages[-1]["content"].splitlines():
+            if line.startswith("Frame stage: "):
+                stage = line[len("Frame stage: "):].strip()
+        return json.dumps({"text": f"narrate {stage}"})
+
+
+def test_narrate_plan_preserves_frame_order(monkeypatch):
+    # Frames narrate concurrently, but results must stay aligned to their frames
+    # and in the original order (so the SSE stream is unchanged).
+    monkeypatch.setattr(llm_narrator, "_complete", _StageEcho())
+    s = solved_state()
+    apply_moves(s, "R U F D L B".split())
+    plan = build_solve_walkthrough(s)
+    out = list(llm_narrator.narrate_plan(plan, client=None, model="x", memory=None))
+    assert [fr.id for fr, _, _ in out] == [fr.id for fr in plan.frames]
+    for fr, narr, _ in out:
+        assert narr.text == f"narrate {fr.stage}"
+
+
+# --- mid-lesson Q&A grounding ---
+
+def test_build_ask_message_grounds_in_state():
+    s = solved_state()
+    msg = llm_narrator.build_ask_message(
+        "why?", stage="cross", moves=["R"], level="newbie", memory=None, state=s)
+    assert "currently solved" in msg
+    apply_moves(s, ["R"])
+    msg2 = llm_narrator.build_ask_message(
+        "why?", stage="cross", moves=["R"], level="newbie", memory=None, state=s)
+    assert "not solved" in msg2
+
+
+def test_answer_question_allows_out_of_list_moves(monkeypatch):
+    # Unlike frame narration, a Q&A answer isn't restricted to the move list, so
+    # a genuinely helpful answer is returned instead of the grounded fallback.
+    monkeypatch.setattr(
+        llm_narrator, "_complete",
+        lambda c, m, msgs: json.dumps({"text": "Try L then B to fix it."}))
+    text, used_fallback = llm_narrator.answer_question("help", moves=["R", "U"])
+    assert not used_fallback and text == "Try L then B to fix it."
+
+
+def test_answer_question_falls_back_on_empty(monkeypatch):
+    monkeypatch.setattr(
+        llm_narrator, "_complete", lambda c, m, msgs: json.dumps({"text": "   "}))
+    _text, used_fallback = llm_narrator.answer_question("help", moves=["R"])
+    assert used_fallback
 
 
 # --- memory budgeting & forgetting ---
@@ -199,6 +250,7 @@ def test_welcome_line_is_budget_capped():
 def test_stage_note_prioritised_over_welcome(monkeypatch):
     cap = _Capture()
     monkeypatch.setattr(llm_narrator, "_complete", cap)
+    monkeypatch.setattr(settings, "narration_workers", 1)  # deterministic capture order
     plan = build_topic_lesson("sune")
     target = plan.frames[0].stage
     memory = {
@@ -226,6 +278,7 @@ def test_step_from_setup_frame_uses_move_sequence_validator():
     assert step.validator.type == "moveSequence"
     assert step.expected_moves == fr.moves
     assert step.setup_moves == fr.setup_moves
+    assert step.highlight == fr.highlight == "corner"  # highlight carries to the step
 
 
 def test_step_from_solve_stage_uses_cube_state_validator():

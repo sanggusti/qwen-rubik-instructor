@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "svelte": {
+      "command": "npx",
+      "args": ["@sveltejs/mcp@latest"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--browser",
+        "chromium"
+      ]
+    }
+  }
+}

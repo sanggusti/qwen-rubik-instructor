@@ -17,11 +17,13 @@ walkthroughs — all on a live cube you can grab and play with at any time.
   rotations (`x y z`), with prime variants.
 - **Take guided lessons** — beginner notation, first sequences, and
   improvement tracks. Steps validate your actual moves and track progress
-  (persisted in the browser).
+  (persisted in the browser). A "Lesson from my cube (Qwen)" button generates
+  a lesson tailored to your cube's current state.
 - **Run practice drills** — repeatable pattern drills with live evaluation,
   scoring, and feedback.
 - **Explore walkthroughs** — narrated, animated step-throughs that highlight
-  pieces and pace the animation so you can follow what's happening.
+  pieces and pace the animation so you can follow what's happening. A "Solve
+  my cube (Qwen)" button streams a narrated solve plan for your current cube.
 - **Inspect cube state** — a State panel shows move history and state
   transitions for debugging and understanding.
 - **Scramble / reset** anytime, with an idle "breathing" animation when you
@@ -80,32 +82,42 @@ npm run test       # run the Vitest suite
 
 ## How it works
 
-The frontend is a single TypeScript + Vite app. The cube itself is rendered and
-animated with Three.js, and the learning logic is a set of engines that drive
-the same shared cube API.
+The frontend is a SvelteKit app (Svelte 5 runes, static-SPA adapter). The cube
+itself is rendered and animated with Three.js via Threlte, and the learning
+logic is a set of framework-agnostic engines wired into reactive stores.
 
 ```text
 frontend/src/
-├── core/         # cube state model + event utilities
-├── scene/        # Three.js scene, cube mesh, move animator, scramble
-├── education/    # lessons, practice drills, walkthroughs, evaluation
-├── ui/           # HUD menu, panels, captions, drag/keyboard controls
-├── configs/      # scene / lighting / debug / sound configuration
-└── main.ts       # wires the cube API to the engines and UI
+├── routes/             # +layout.svelte (retro shell) + +page.svelte (the cube experience)
+└── lib/
+    ├── cube/           # cube state model, events, scramble — no Svelte/Three imports
+    ├── scene/           # Threlte components + the imperative Three.js controllers
+    │                    #   (CubeCanvas, CubeMesh, animator, drag-controls, keyboard)
+    ├── education/       # lesson/practice/walkthrough engines, validators, profile
+    ├── api/             # narrate.ts — SSE client that streams Qwen-generated content
+    ├── stores/          # Svelte runes glue between engines and components
+    ├── components/      # generic retro UI atoms (HudBar, Panel, TouchMovePad, …)
+    ├── panels/          # Lessons / Practice / Explore / Debugger / Level panel content
+    └── styles/          # synthwave design tokens + shared retro CSS
 ```
 
-`main.ts` exposes a small cube API (`applyMoves`, `scramble`, `reset`,
-`getState`, `onMove`, …) on `window.rubikInstructor`. Every learning
+`lib/stores/cube.svelte.ts` exposes the cube API (`applyMoves`, `scramble`,
+`reset`, `getState`, `onMove`, …) as a reactive store. Every learning
 experience — lessons, practice, walkthroughs — is built on top of that same
-API, which is also what makes the cube a clean target for an external content
-generator to drive.
+API, which is also what makes the cube a clean target for the Qwen backend to
+drive: the Lessons and Explore panels each have a "from my cube (Qwen)" button
+that POSTs the live cube state to the FastAPI backend's `/narrate/lesson` or
+`/narrate/walkthrough` endpoint and streams the generated content back over
+SSE (`lib/api/narrate.ts`).
 
 ## Roadmap
 
 The current app is the playable foundation. The product direction is to make the
 course **dynamic** rather than static:
 
-- Generate lesson and drill content with **Qwen** instead of a fixed catalog.
+- Generate lesson and walkthrough content with **Qwen** from your live cube
+  state — shipped for Lessons/Explore; practice drills and a fixed catalog
+  fallback remain.
 - Stream explanations and move sequences from the model and animate them live.
 - Let the learner interrupt, ask, and experiment mid-lesson — the cube stays
   interactive throughout.

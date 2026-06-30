@@ -1,0 +1,54 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npx playwright *)",
+      "Bash(node -e \"console.log\\(Object.keys\\(require\\('./node_modules/@threlte/extras/package.json'\\).exports || {}\\)\\)\")",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(node /private/tmp/claude-501/-Users-suryaagung-go-src-github-com-sanggusti-qwen-rubik-instructor/f537b7ad-c219-4a7c-9bf9-fcef92bab5eb/scratchpad/verify-phase2.mjs)",
+      "Bash(NODE_PATH=\"$\\(pwd\\)/node_modules\" node /private/tmp/claude-501/-Users-suryaagung-go-src-github-com-sanggusti-qwen-rubik-instructor/f537b7ad-c219-4a7c-9bf9-fcef92bab5eb/scratchpad/verify-phase2.mjs)",
+      "Bash(node /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor/frontend-sveltekit/verify-phase2.mjs)",
+      "Bash(cat /tmp/sveltekit-dev.log 2>&1 | tail -60)",
+      "Read(//private/tmp/**)",
+      "Bash(curl -s http://localhost:5173/)",
+      "Bash(node /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor/frontend-sveltekit/verify-orbit.mjs)",
+      "Bash(kill %1)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit:$?\")",
+      "mcp__svelte__svelte-autofixer",
+      "Bash(npm run dev -- --port 5173 > /tmp/sveltekit-dev.log 2>&1 & *)",
+      "mcp__playwright__browser_navigate",
+      "Bash(npx @playwright/mcp install-browser chrome-for-testing)",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_press_key",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_run_code_unsafe",
+      "Bash(jobs -l)",
+      "Bash(pkill -f \"vite dev --port 5173\")",
+      "mcp__playwright__browser_tabs",
+      "mcp__svelte__get-documentation",
+      "Read(//*.playwright-mcp/**)",
+      "Bash(find / -name \"console-2026-06-29T17-34-28-479Z.log\")",
+      "mcp__playwright__browser_resize",
+      "Bash(pkill -f \"vite dev\")",
+      "mcp__playwright__browser_close",
+      "Bash(kill 96820)",
+      "Bash(kill 5196)",
+      "Bash(rm -f /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor/phase5-*.png)",
+      "Bash(git -C /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor status --porcelain frontend-sveltekit docs/plan/revampsvelte.md)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp",
+      "/Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "playwright",
+    "svelte"
+  ]
+}

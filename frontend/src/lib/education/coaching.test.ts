@@ -50,6 +50,23 @@ describe('buildCoachingMessages', () => {
         expect(hint!.body).toContain('U');
     });
 
+    it('nudges to reset when a setup drill has the right moves but stays unsolved', () => {
+        // Full sequence performed, step not completed: on a setup drill that can
+        // only mean the cube was knocked off-track, so guide a clean retry.
+        const step: LessonStep = {
+            ...seqStep(['R', 'U']),
+            setupMoves: ['U', "R'"]
+        };
+        const messages = buildCoachingMessages({
+            ...base,
+            step,
+            moveHistory: ['R', 'U']
+        });
+        const error = messages.find((m) => m.kind === 'mistake');
+        expect(error?.body).toContain('isn’t solved');
+        expect(messages.some((m) => m.body.includes('Set up step'))).toBe(true);
+    });
+
     it('detects a mistake mentioning expected and actual moves', () => {
         const messages = buildCoachingMessages({
             ...base,

@@ -178,8 +178,21 @@ export function isSolved(state: State): boolean {
   );
 }
 
+// The single move that undoes `move`: toggle prime, except a double (…2) is its
+// own inverse. Used to step a learner back through their own turns.
+export function invertMove(move: string): string {
+  if (move.endsWith('2')) return move;
+  return move.endsWith("'") ? move.slice(0, -1) : move + "'";
+}
+
 export function cloneState(s: State): State {
   return {
     U: [...s.U], D: [...s.D], L: [...s.L], R: [...s.R], F: [...s.F], B: [...s.B]
   };
+}
+
+export function statesEqual(a: State, b: State): boolean {
+  return (Object.keys(a) as FaceKey[]).every(f =>
+    a[f].length === b[f].length && a[f].every((c, i) => c === b[f][i])
+  );
 }

@@ -6,6 +6,7 @@ import {
     solvedState,
     applyMove,
     isSolved,
+    invertMove,
     type State,
     type FaceKey
 } from './state';
@@ -129,9 +130,7 @@ describe('logical state matches the geometric cube — random sequences', () => 
 });
 
 describe('logical state — solved and restored conditions (the debugger desync)', () => {
-    function invert(move: string): string {
-        return move.endsWith("'") ? move.slice(0, -1) : move + "'";
-    }
+    const invert = invertMove;
 
     it('every single move followed by its inverse returns to solved', () => {
         for (const move of SINGLE_MOVES) {

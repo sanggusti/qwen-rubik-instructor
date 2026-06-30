@@ -42,6 +42,26 @@ describe('validateStep', () => {
         expect(validateStep(step, ['R', 'U', "R'"], solvedState())).toBe(false);
     });
 
+    it('moveSequence steps WITH setup also require the cube to be solved', () => {
+        // A setup-based drill scrambles with the inverse of the algorithm, so the
+        // right move suffix on a cube knocked off-track must NOT complete.
+        const step: LessonStep = {
+            ...base,
+            setupMoves: ['U', 'R', "U'", "R'"],
+            validator: { type: 'moveSequence', moves: ['R', 'U', "R'", "U'"] }
+        };
+        // Setup then algorithm returns a solved cube -> completes.
+        const solved = solvedState();
+        for (const m of ['U', 'R', "U'", "R'", 'R', 'U', "R'", "U'"]) applyMove(solved, m);
+        expect(validateStep(step, ['R', 'U', "R'", "U'"], solved)).toBe(true);
+
+        // A stray move before the algorithm: suffix still matches, but the cube
+        // is not solved -> must NOT complete (the false-"correct" bug).
+        const offTrack = solvedState();
+        for (const m of ['U', 'R', "U'", "R'", 'D', 'R', 'U', "R'", "U'"]) applyMove(offTrack, m);
+        expect(validateStep(step, ['D', 'R', 'U', "R'", "U'"], offTrack)).toBe(false);
+    });
+
     it('cubeSolved steps complete only when the cube is solved', () => {
         const step: LessonStep = { ...base, validator: { type: 'cubeSolved' } };
         expect(validateStep(step, [], solvedState())).toBe(true);
@@ -49,5 +69,24 @@ describe('validateStep', () => {
         const scrambled = solvedState();
         applyMove(scrambled, 'R');
         expect(validateStep(step, [], scrambled)).toBe(false);
+    });
+
+    it('cubeState steps complete only when the cube matches the expected state', () => {
+        const expected = solvedState();
+        applyMove(expected, 'R');
+        applyMove(expected, 'U');
+        const step: LessonStep = { ...base, validator: { type: 'cubeState', expected } };
+
+        const reached = solvedState();
+        applyMove(reached, 'R');
+        applyMove(reached, 'U');
+        expect(validateStep(step, ['R', 'U'], reached)).toBe(true);
+
+        // A stray move means the right move suffix lands on a different state.
+        const off = solvedState();
+        applyMove(off, 'D');
+        applyMove(off, 'R');
+        applyMove(off, 'U');
+        expect(validateStep(step, ['D', 'R', 'U'], off)).toBe(false);
     });
 });

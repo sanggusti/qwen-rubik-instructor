@@ -62,6 +62,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'beginner-first-trigger-do',
+                highlight: 'corner',
                 title: 'Do R U R\u2032 U\u2032',
                 body:
                     "Turn the right face clockwise (`R`), the top clockwise (`U`), the right face back (`R'`), then the top back (`U'`). Take your time \u2014 the panel will confirm when you finish. Use Apply example moves if you want to watch it first.",
@@ -75,6 +76,7 @@ export const LESSON_CATALOG: Lesson[] = [
                 body:
                     'The cube is one quarter-turn away from solved. Press Set up step to scramble it by a single turn, then undo that turn to make every face one solid color again.',
                 setupMoves: ['R'],
+                expectedMoves: ["R'"],
                 hints: ['Undo the setup move by turning the same face in the opposite direction.'],
                 validator: { type: 'cubeSolved' }
             }
@@ -91,6 +93,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-cross-idea',
+                highlight: 'edge',
                 title: 'What the cross is',
                 body:
                     'Pick a colour (white is traditional) and build a plus-sign of its four edges, each also matching the centre next to it. Edges only — corners come later. Press Mark complete when the idea is clear.',
@@ -98,6 +101,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-cross-drop',
+                highlight: 'edge',
                 title: 'Drop an edge into the cross',
                 body:
                     'Press Set up step to lift a cross edge to the top. Now turn that face twice (`F` then `F`) to drop the edge straight down into the cross. This is the core move of cross-building.',
@@ -119,6 +123,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-flc-idea',
+                highlight: 'corner',
                 title: 'Position above the slot',
                 body:
                     'A first-layer corner belongs between two centres. Put the corner in the top layer directly above the gap it needs to fill, then the trigger walks it down. Press Mark complete to try it.',
@@ -126,6 +131,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-flc-insert',
+                highlight: 'corner',
                 title: 'Insert with R U R′ U′',
                 body:
                     'Press Set up step to lift a corner out of place. Now do the trigger `R U R′ U′` to slot it back. Repeat the trigger until a corner is seated — here once is enough.',
@@ -147,6 +153,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-mid-idea',
+                highlight: 'edge',
                 title: 'Find an edge with no yellow',
                 body:
                     'Top edges that have no yellow belong in the middle layer. Line the edge up with its matching centre, then send it right or left. Press Mark complete to practise the right insert.',
@@ -154,6 +161,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-mid-insert',
+                highlight: 'edge',
                 title: 'Right insert: U R U′ R′ U′ F′ U F',
                 body:
                     'Press Set up step, then perform the right-hand insertion `U R U′ R′ U′ F′ U F` to place a middle-layer edge. Go slowly and watch the edge travel down.',
@@ -178,6 +186,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-llc-idea',
+                highlight: 'edge',
                 title: 'Dot, L, or line',
                 body:
                     'Look at the last-layer edges: you will see a dot, an L-shape, or a line. The same algorithm progresses each toward a cross. Press Mark complete to learn it.',
@@ -185,6 +194,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-llc-do',
+                highlight: 'edge',
                 title: 'F R U R′ U′ F′',
                 body:
                     'Press Set up step, then perform `F R U R′ U′ F′`. On a real solve you repeat it until the cross appears; here one application returns the cross.',
@@ -206,6 +216,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-llcp-idea',
+                highlight: 'corner',
                 title: 'Right place, any twist',
                 body:
                     'A corner is "placed" when its three colours match the three faces around its spot, even if it is twisted. Find one already-placed corner and cycle the rest. Press Mark complete to practise.',
@@ -213,6 +224,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-llcp-do',
+                highlight: 'corner',
                 title: 'U R U′ L′ U R′ U′ L',
                 body:
                     'Press Set up step, then perform the corner cycle `U R U′ L′ U R′ U′ L` to send the corners to their homes.',
@@ -237,6 +249,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-llco-idea',
+                highlight: 'corner',
                 title: 'One corner at a time',
                 body:
                     'Hold the cube so a corner that needs twisting is at the top-front-right. Repeat R′ D′ R D (usually two or four times) until that one corner shows the right colour on top, then turn only the top to bring the next corner there. Press Mark complete to try one.',
@@ -244,6 +257,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-llco-do',
+                highlight: 'corner',
                 title: "R′ D′ R D",
                 body:
                     'Press Set up step, then perform `R′ D′ R D` to twist a corner back. Trust the process — this short cycle is the whole trick.',
@@ -265,6 +279,7 @@ export const LESSON_CATALOG: Lesson[] = [
         steps: [
             {
                 id: 'lbl-lle-idea',
+                highlight: 'edge',
                 title: 'The final cycle',
                 body:
                     'If the edges are swapped opposite each other, the H-permutation cycles them home in one go. Press Mark complete to learn it.',
@@ -272,6 +287,7 @@ export const LESSON_CATALOG: Lesson[] = [
             },
             {
                 id: 'lbl-lle-do',
+                highlight: 'edge',
                 title: 'M2 U M2 U2 M2 U M2',
                 body:
                     'Press Set up step, then perform the H-perm `M2 U M2 U2 M2 U M2` (each M2 is two M slices) to finish the cube. The middle slice does the work.',

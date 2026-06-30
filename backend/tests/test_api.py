@@ -118,18 +118,40 @@ def test_ask_returns_grounded_answer(client):
     assert body["text"] and not body["fallback"]  # mocked LLM returns a valid line
 
 
+def test_solve_returns_moves_that_solve_the_cube(client):
+    state = solved_state()
+    apply_moves(state, "R U R' U' F2 B L D' R B'".split())
+    res = client.post("/solve", json={"state": state})
+    assert res.status_code == 200
+    # The returned moves solve the scrambled cube they were computed for.
+    apply_moves(state, res.json()["moves"])
+    assert is_solved(state)
+
+
+def test_solve_rejects_malformed_state(client):
+    assert client.post("/solve", json={"state": {"U": ["U"] * 9}}).status_code == 400
+
+
 def test_ask_requires_a_question(client):
     assert client.post("/ask", json={"question": "   "}).status_code == 400
 
 
-def test_ask_rejects_invented_moves(client, monkeypatch):
-    # Model answer mentions L/B, which aren't in the move list -> re-prompt fails
-    # twice -> grounded fallback (used_fallback True), never leaks invented moves.
+def test_ask_answers_question_directly(client, monkeypatch):
+    # Q&A answers aren't restricted to the move list: a real, helpful answer is
+    # returned verbatim rather than swapped for the grounded fallback.
     monkeypatch.setattr(
         llm_narrator, "_complete",
         lambda client, model, messages: json.dumps({"text": "Do L then B to fix it."}),
     )
     res = client.post("/ask", json={"question": "help", "moves": ["R", "U"]})
     body = res.json()
-    assert body["fallback"] is True
-    assert "L" not in body["text"] and "B" not in body["text"]
+    assert body["fallback"] is False
+    assert body["text"] == "Do L then B to fix it."
+
+
+def test_ask_accepts_cube_state(client):
+    state = solved_state()
+    apply_moves(state, ["R"])
+    res = client.post("/ask", json={"question": "what now?", "moves": ["R'"], "state": state})
+    assert res.status_code == 200
+    assert res.json()["text"]

@@ -91,6 +91,8 @@ export interface AskOptions {
   /** The stage the learner is on, and the moves in play — used to ground the answer. */
   stage?: string;
   moves?: string[];
+  /** The live cube state, so the answer is grounded in what the learner sees. */
+  state?: State;
   level?: Level;
   memory?: MemoryDigest;
 }
@@ -113,6 +115,26 @@ export async function askQwen(opts: AskOptions): Promise<string> {
     throw new Error(detail);
   }
   return ((await res.json()) as { text: string }).text;
+}
+
+// Ask the backend's LBL solver for the moves that solve the given cube. Used by
+// the lesson "Get unstuck" rescue to animate a path back to solved.
+export async function solveCube(state: State): Promise<string[]> {
+  const res = await fetch(`${BASE_URL}/solve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state })
+  });
+  if (!res.ok) {
+    let detail = `Backend returned ${res.status}`;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return ((await res.json()) as { moves: string[] }).moves;
 }
 
 export async function generateWalkthrough(opts: GenerateOptions): Promise<Walkthrough> {

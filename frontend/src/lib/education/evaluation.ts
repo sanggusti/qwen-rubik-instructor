@@ -5,18 +5,29 @@
 import type { State } from '../cube/state';
 import { isSolved } from '../cube/state';
 import { endsWithMoves } from './lesson_validator';
+import { trailingPrefixLength } from './coaching';
 import type { Drill, EvaluationResult } from './practice_types';
 
 export function evaluate(drill: Drill, moveHistory: string[], state: State): EvaluationResult {
     switch (drill.validator.type) {
         case 'moveSequence':
-            return evaluateSequence(drill.validator.moves, moveHistory);
+            return evaluateSequence(
+                drill.validator.moves,
+                moveHistory,
+                state,
+                !!drill.setupMoves?.length
+            );
         case 'cubeSolved':
             return evaluateSolved(state);
     }
 }
 
-function evaluateSequence(expected: string[], moveHistory: string[]): EvaluationResult {
+function evaluateSequence(
+    expected: string[],
+    moveHistory: string[],
+    state: State,
+    requireSolved: boolean
+): EvaluationResult {
     if (moveHistory.length === 0) {
         return { status: 'idle', message: `Start with ${expected[0]}.` };
     }
@@ -24,6 +35,14 @@ function evaluateSequence(expected: string[], moveHistory: string[]): Evaluation
     // The drill completes when the history ENDS with the expected moves, so a
     // mistake clears as soon as the user restarts the sequence correctly.
     if (endsWithMoves(moveHistory, expected)) {
+        // A setup-based drill must also leave the cube solved; right moves on a
+        // cube knocked off-track earlier is not a real success.
+        if (requireSolved && !isSolved(state)) {
+            return {
+                status: 'wrong',
+                message: 'Right moves, but the cube isn’t solved — reset the drill and start from the setup.'
+            };
+        }
         return { status: 'correct', message: 'Correct sequence.' };
     }
 
@@ -53,20 +72,4 @@ function evaluateSolved(state: State): EvaluationResult {
     return isSolved(state)
         ? { status: 'correct', message: 'Cube solved.' }
         : { status: 'progress', message: 'Keep going until the cube is solved.' };
-}
-
-// Length of the longest suffix of `history` that is a prefix of `expected`.
-function trailingPrefixLength(history: string[], expected: string[]): number {
-    const max = Math.min(history.length, expected.length);
-    for (let p = max; p > 0; p--) {
-        let ok = true;
-        for (let i = 0; i < p; i++) {
-            if (history[history.length - p + i] !== expected[i]) {
-                ok = false;
-                break;
-            }
-        }
-        if (ok) return p;
-    }
-    return 0;
 }

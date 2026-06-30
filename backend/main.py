@@ -21,6 +21,7 @@ from narrative.llm_narrator import answer_question, narrate_plan
 from narrative.merge import beat_from, step_from
 from narrative.schema import VisualPlan
 from pipeline.cube.facelet import State, is_well_formed
+from pipeline.solver import solve
 
 app = FastAPI(title="Qwen Rubik Instructor")
 
@@ -48,6 +49,8 @@ class MemoryDigest(BaseModel):
     lastKind: Optional[str] = None
     struggles: List[StruggleStage] = []
     mastered: List[str] = []
+    # Mastered skills gone stale (the forgetting curve), surfaced for review.
+    dueForReview: List[str] = []
 
 
 class NarrateRequest(BaseModel):
@@ -147,12 +150,31 @@ def narrate_lesson(req: NarrateRequest) -> StreamingResponse:
 
 class AskRequest(BaseModel):
     # A free-form question the learner asks mid-lesson. `moves` are the moves in
-    # play on the current step, used to ground the answer (no invented moves).
+    # play on the current step and `state` is the live cube, both used to ground
+    # the answer in what the learner is actually looking at.
     question: str
     stage: Optional[str] = None
     moves: Optional[List[str]] = None
+    state: Optional[Dict[str, List[str]]] = None
     level: Optional[Literal["newbie", "intermediate", "advanced"]] = None
     memory: Optional[MemoryDigest] = None
+
+
+class SolveRequest(BaseModel):
+    # The live cube to solve. Used by the lesson "Get unstuck" rescue, which
+    # animates the path back to a solved cube from wherever the learner is.
+    state: Dict[str, List[str]]
+
+
+@app.post("/solve")
+def solve_cube(req: SolveRequest) -> dict:
+    if not is_well_formed(req.state):
+        raise HTTPException(status_code=400, detail="malformed cube state")
+    try:
+        stages = solve(req.state)
+    except Exception as exc:  # solver rejects an unsolvable state
+        raise HTTPException(status_code=422, detail=f"could not solve: {exc}")
+    return {"moves": [m for stage in stages for m in stage.moves]}
 
 
 @app.post("/ask")
@@ -166,5 +188,6 @@ def ask(req: AskRequest) -> dict:
         moves=req.moves or [],
         level=req.level or "newbie",
         memory=req.memory.model_dump() if req.memory else None,
+        state=req.state,
     )
     return {"text": text, "fallback": used_fallback}

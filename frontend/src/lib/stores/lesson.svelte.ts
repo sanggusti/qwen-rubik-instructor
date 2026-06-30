@@ -15,6 +15,7 @@ const lessonApi: LessonApi = {
   applyMoves: (moves) => cubeStore.applyMoves(moves),
   getState: () => cubeStore.getState(),
   isSolved: () => cubeStore.isSolved,
+  reset: () => cubeStore.reset(),
   onMove: (fn) => cubeStore.onMove(fn)
 };
 

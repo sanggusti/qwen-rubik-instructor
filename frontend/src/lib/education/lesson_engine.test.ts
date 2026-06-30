@@ -20,6 +20,7 @@ function fakeApi() {
         },
         getState: () => cloneState(state),
         isSolved: () => isSolved(state),
+        reset: () => { state = solvedState(); },
         onMove(fn) {
             subs.add(fn);
             return () => subs.delete(fn);
@@ -145,11 +146,13 @@ describe('LessonEngine', () => {
         const engine = new LessonEngine(api, LESSONS, storage);
         engine.selectLesson('l1');
         engine.markComplete(); // l1-seq
-        user('R', 'U'); // completes l1-seq -> l1-solved; cube now scrambled by R U
+        // Completes l1-seq -> l1-solved. Setup ['R'] resets the cube to solved
+        // first (clearing the R U residue), so it's exactly one turn from solved.
+        user('R', 'U');
         expect(engine.getCurrentStep()?.id).toBe('l1-solved');
         expect(api.isSolved()).toBe(false);
 
-        user("U'", "R'"); // undo R U -> solved
+        user("R'"); // undo the setup R -> solved
         expect(api.isSolved()).toBe(true);
 
         let lessonCompleted = false;
@@ -240,6 +243,138 @@ const SEQ_LESSON: Lesson[] = [
     }
 ];
 
+// A self-checking drill lesson: setup is the inverse of the algorithm, so
+// performing the algorithm from the setup position returns the cube to solved.
+const SETUP_LESSON: Lesson[] = [
+    {
+        id: 'drill',
+        track: 'beginner',
+        title: 'Drill',
+        audience: 'a',
+        description: 'd',
+        steps: [
+            {
+                id: 'drill-do',
+                title: 'Do',
+                body: 'b',
+                setupMoves: ['U', 'R', "U'", "R'"],
+                expectedMoves: ['R', 'U', "R'", "U'"],
+                validator: { type: 'moveSequence', moves: ['R', 'U', "R'", "U'"] }
+            }
+        ]
+    }
+];
+
+describe('LessonEngine setup drills (state-gated)', () => {
+    it('auto-applies the setup so the cube is scrambled on entry', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        expect(api.isSolved()).toBe(false); // setup ran without the user moving
+    });
+
+    it('completes when the algorithm actually solves the cube', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        user('R', 'U', "R'", "U'"); // algorithm from the setup -> solved
+        expect(api.isSolved()).toBe(true);
+        const off = engine.subscribe(() => {});
+        off();
+        expect(engine.getCurrentStep()?.id).toBe('drill-do');
+        // The single-step lesson is now complete.
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(true);
+    });
+
+    it('does NOT complete when a wrong move precedes the right sequence', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        user('D'); // stray move knocks the cube off the setup trajectory
+        user('R', 'U', "R'", "U'"); // suffix matches, but cube is not solved
+        expect(api.isSolved()).toBe(false);
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false); // the false-"correct" bug must stay fixed
+    });
+
+    it('Apply example moves after a wrong move does NOT falsely complete', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SETUP_LESSON, fakeStorage());
+        engine.selectLesson('drill');
+        user('D'); // wrong move
+        engine.applyExampleMoves(); // user "just clicks Apply moves"
+        expect(api.isSolved()).toBe(false);
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false);
+    });
+});
+
+// A solve-stage lesson graded by cube state (as the Qwen "Solve your cube"
+// lesson now is): expected is the exact state after performing expectedMoves.
+function cubeStateLesson(): Lesson[] {
+    const expected = solvedState();
+    for (const m of ['R', 'U', "R'"]) applyMove(expected, m);
+    return [
+        {
+            id: 'solve',
+            track: 'beginner',
+            title: 'Solve',
+            audience: 'a',
+            description: 'd',
+            steps: [
+                {
+                    id: 'stage',
+                    title: 'Stage',
+                    body: 'b',
+                    expectedMoves: ['R', 'U', "R'"],
+                    validator: { type: 'cubeState', expected }
+                }
+            ]
+        }
+    ];
+}
+
+describe('LessonEngine solve stages (cubeState)', () => {
+    it('reveals the next move and auto-grades by reaching the target state', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, cubeStateLesson(), fakeStorage());
+        engine.selectLesson('solve');
+        expect(engine.nextExpectedMove()).toBe('R'); // hint works on solve stages
+        user('R');
+        expect(engine.nextExpectedMove()).toBe('U');
+        user('U', "R'"); // reaches the stage's target state -> completes
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(true);
+    });
+
+    it('does NOT complete when the moves land on a different state', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, cubeStateLesson(), fakeStorage());
+        engine.selectLesson('solve');
+        user('D'); // stray move
+        user('R', 'U', "R'"); // right suffix, wrong resulting state
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false);
+    });
+
+    it('records a mistake on a solve stage (memory signal is no longer always zero)', () => {
+        const { api, user } = fakeApi();
+        const store = fakeStorage();
+        const engine = new LessonEngine(api, cubeStateLesson(), store);
+        engine.selectLesson('solve');
+        user('D'); // off-track on a state-graded stage -> counts as a mistake
+        user("D'", 'R', 'U', "R'"); // undo the stray, then perform the stage -> target
+        // Before Tier B, solve stages were manual and recorded mistakes:0 always.
+        expect(loadPerf(store, 'solve').mistakes).toBeGreaterThan(0);
+    });
+});
+
 describe('LessonEngine performance signals', () => {
     it('records mistakes and duration into the profile on completion', () => {
         let t = 1000;
@@ -282,5 +417,76 @@ describe('LessonEngine rescue', () => {
         const engine = new LessonEngine(api, LESSONS, fakeStorage());
         engine.selectLesson('l1'); // first step is manual
         expect(engine.nextExpectedMove()).toBeNull();
+    });
+
+    it('doNextMove performs the next expected move for the learner', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        engine.doNextMove(); // applies R
+        expect(engine.nextExpectedMove()).toBe('U');
+        engine.doNextMove(); // applies U -> completes the single-step lesson
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(true);
+    });
+
+    it('undoLastMove reverts the cube and drops the move from history', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        user('R');
+        expect(engine.nextExpectedMove()).toBe('U'); // a correct prefix is in history
+        engine.undoLastMove();
+        expect(engine.nextExpectedMove()).toBe('R'); // history emptied
+        expect(api.isSolved()).toBe(true); // R then its inverse R' -> solved
+    });
+
+    it('applyAssistMoves does not count as the learner’s own moves', () => {
+        const { api } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        engine.applyAssistMoves(['R', 'U']); // performs the sequence as a demo
+        // Swallowed: history stays empty and the step is not auto-completed.
+        expect(engine.nextExpectedMove()).toBe('R');
+        let done = false;
+        engine.subscribe((s) => { done = s.lesson !== null && s.lessonCompleted; });
+        expect(done).toBe(false);
+    });
+
+    it('exposes the learner move history in its snapshot', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, SEQ_LESSON, fakeStorage());
+        engine.selectLesson('perf');
+        user('R');
+        let history: string[] = [];
+        engine.subscribe((s) => { history = s.lesson !== null ? s.moveHistory : []; });
+        expect(history).toEqual(['R']);
+    });
+});
+
+describe('LessonEngine setup state', () => {
+    it('resets the cube before setup so a prior step leaves no residue', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, LESSONS, fakeStorage());
+        engine.selectLesson('l1');
+        engine.markComplete(); // l1-seq
+        user('R', 'U'); // completes l1-seq, enters l1-solved (setup ['R'])
+        // Setup reset the R U residue, so the cube is exactly one R from solved.
+        user("R'");
+        expect(api.isSolved()).toBe(true);
+    });
+
+    it('resetStep rebuilds the step start and drops the learner moves', () => {
+        const { api, user } = fakeApi();
+        const engine = new LessonEngine(api, LESSONS, fakeStorage());
+        engine.selectLesson('l1');
+        engine.markComplete();
+        user('R', 'U'); // enter l1-solved; cube is one R from solved
+        user('U'); // a wrong move
+        expect(api.isSolved()).toBe(false);
+        engine.resetStep(); // back to the setup position (solved + R)
+        user("R'"); // the correct undo now solves it
+        expect(api.isSolved()).toBe(true);
     });
 });

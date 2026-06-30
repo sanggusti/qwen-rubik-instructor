@@ -4,9 +4,12 @@
   import TouchMovePad from '$lib/components/TouchMovePad.svelte';
   import StageCaption from '$lib/components/StageCaption.svelte';
   import HudBar from '$lib/components/HudBar.svelte';
+  import LandingPage from '$lib/landing/LandingPage.svelte';
   import { lessonStore } from '$lib/stores/lesson.svelte';
   import { practiceStore } from '$lib/stores/practice.svelte';
   import { walkthroughStore } from '$lib/stores/walkthrough.svelte';
+
+  let view = $state<'landing' | 'app'>('landing');
 
   // Only one experience runs at a time, so the stage caption has a single
   // owner. `keep: 'none'` ends every experience (used by tabs that own none,
@@ -21,10 +24,14 @@
   let keypadOpen = $state(false);
 </script>
 
-<CubeCanvas>
-  <CubeMesh />
-</CubeCanvas>
+{#if view === 'landing'}
+  <LandingPage onPlay={() => (view = 'app')} />
+{:else}
+  <CubeCanvas>
+    <CubeMesh />
+  </CubeCanvas>
 
-<TouchMovePad open={keypadOpen} />
-<StageCaption />
-<HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />
+  <TouchMovePad open={keypadOpen} />
+  <StageCaption />
+  <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />
+{/if}

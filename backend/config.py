@@ -14,7 +14,9 @@ class Settings(BaseSettings):
 
     dashscope_api_key: str = ""
     # Qwen model id served over DashScope's OpenAI-compatible endpoint.
-    qwen_model: str = "qwen3.7-plus"
+    # qwen-plus is fast (~5s/frame); set QWEN_MODEL=qwen3.7-plus for the slower,
+    # deeper reasoning model (~33s/frame).
+    qwen_model: str = "qwen-plus"
     dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     cors_origins: list[str] = ["http://localhost:5173"]
     # Per-request LLM timeout (seconds) so a slow/hung call can't stall the stream.

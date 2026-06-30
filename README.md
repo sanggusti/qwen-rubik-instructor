@@ -31,14 +31,20 @@ walkthroughs — all on a live cube you can grab and play with at any time.
 
 ## Quick start
 
-Requirements: **Node.js 18+** and npm, plus **Python 3.10+** for the Qwen backend.
+Requirements: **Node.js 20.19+** (or 22.12+/24+) and npm, plus **Python 3.10+**
+for the Qwen backend.
 
 **1. Frontend**
 
 ```bash
 npm install        # also installs the frontend workspace
-npm run dev        # start the Vite dev server (http://localhost:5173)
+npm run dev        # start the SvelteKit dev server (http://localhost:5173)
 ```
+
+The frontend reads the backend URL from `PUBLIC_BACKEND_URL` via SvelteKit's
+static env, so create `frontend/.env` with `PUBLIC_BACKEND_URL=http://localhost:8000`
+before running — the build/dev fails without it. (This is separate from the
+backend's repo-root `.env` below.)
 
 **2. Backend** (powers the "Solve my cube (Qwen)" / "Lesson from my cube" features)
 
@@ -53,18 +59,19 @@ The backend narrates moves with Qwen via DashScope, so it needs a
 `DASHSCOPE_API_KEY` (an OpenAI-compatible Alibaba Cloud key). Put it in a
 `.env` file at the repo root or export it as shown above.
 
-The default model `qwen3.7-plus` is a reasoning model (~33s per frame). For
-much faster narration, set `QWEN_MODEL=qwen-plus`.
+The default model `qwen-plus` narrates fast (~5s per frame). For deeper but
+much slower narration (~33s per frame), set `QWEN_MODEL=qwen3.7-plus`.
 
-Open the Vite URL printed in the terminal (usually `http://localhost:5173`).
+Open the dev server URL printed in the terminal (usually `http://localhost:5173`).
 You can drive the cube and take the hand-authored lessons without the backend;
 the Qwen-powered generate features need it running.
 
 ### Other commands
 
 ```bash
-npm run build      # type-check + production build
+npm run build      # production build (static SPA bundle)
 npm run preview    # serve the production build
+npm run check      # svelte-check type-check
 npm run test       # run the Vitest suite
 ```
 
@@ -109,6 +116,13 @@ drive: the Lessons and Explore panels each have a "from my cube (Qwen)" button
 that POSTs the live cube state to the FastAPI backend's `/narrate/lesson` or
 `/narrate/walkthrough` endpoint and streams the generated content back over
 SSE (`lib/api/narrate.ts`).
+
+## Engineering notes
+
+The story of how this went from an interaction prototype to a learn-with-LLM
+tutor — the memory, the curriculum, the grading fixes, the SvelteKit rewrite, and
+the narration-latency hunt — is written up as a blog series in
+[`docs/`](./docs/README.md).
 
 ## Roadmap
 

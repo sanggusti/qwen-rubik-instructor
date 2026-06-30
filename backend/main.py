@@ -8,6 +8,7 @@ frontend over Server-Sent Events.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Dict, Iterator, List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -22,6 +23,10 @@ from narrative.merge import beat_from, step_from
 from narrative.schema import VisualPlan
 from pipeline.cube.facelet import State, is_well_formed
 from pipeline.solver import solve
+
+# Surface the "narration" telemetry logger (per-call latency/tokens, per-plan
+# aggregate) on stdout; uvicorn leaves the root logger unconfigured at INFO.
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Qwen Rubik Instructor")
 

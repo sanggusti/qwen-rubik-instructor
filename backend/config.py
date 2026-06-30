@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     qwen_model: str = "qwen3.7-plus"
     dashscope_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     cors_origins: list[str] = ["http://localhost:5173"]
+    # Per-request LLM timeout (seconds) so a slow/hung call can't stall the stream.
+    qwen_timeout_s: float = 20.0
+    # How many frames to narrate concurrently (frames are independent LLM calls).
+    narration_workers: int = 6
 
 
 settings = Settings()

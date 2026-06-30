@@ -1011,6 +1011,84 @@ html, body {
 }
 #stage .stage-move[hidden] { display: none; }
 
+/* The memory-driven "Recommended next" item at the top of the beginner path. */
+#lessons .lsn-item.lsn-recommend {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(90, 215, 255, 0.10);
+  font-weight: 600;
+}
+
+/* Mastery-nudge confirmation shown when the learner skips ahead of an
+   unmastered lesson. Emphasises finishing first, but allows continuing. */
+#lessons .lsn-confirm {
+  border: 1px solid var(--accent-dim);
+  border-radius: 8px;
+  background: rgba(90, 215, 255, 0.06);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+#lessons .lsn-confirm-msg {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+#lessons .lsn-confirm .lsn-actions { margin-bottom: 0; }
+#lessons .lsn-confirm-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(90, 215, 255, 0.10);
+}
+
+/* The "you finished this lesson" banner shown when a completed lesson reopens. */
+#lessons .lsn-done-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--ok);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+/* "What I remember" memory view in the You panel. */
+#level .you-memory { margin-top: 2px; }
+#level .you-memory .exp-hint { margin: 3px 0; }
+#level .you-memory b { color: var(--accent-soft); font-weight: 600; }
+
+/* Client-side welcome-back bar, top-centre, dismissible. */
+#welcome-back {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 520px);
+  color: var(--text);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-dim);
+  backdrop-filter: blur(6px);
+}
+#welcome-back .welcome-close {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px;
+}
+#welcome-back .welcome-close:hover { color: var(--text); }
+
 /* On narrow/portrait screens, drop the side-by-side layout: keep the cube
    centred and float the caption as a bottom sheet above the menu bar. */
 @media (max-width: 760px) {

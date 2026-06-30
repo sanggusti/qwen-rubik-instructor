@@ -40,6 +40,19 @@ const KEY = 'rubik-profile';
 const HISTORY_CAP = 10;
 export const LEVELS: Level[] = ['newbie', 'intermediate', 'advanced'];
 
+// --- Decay & forgetting ---------------------------------------------------
+// What makes this a memory and not a hoard: a struggle's weight fades the longer
+// ago the learner last hit it, struggles that fade past a threshold are dropped
+// entirely, and a mastered skill left idle long enough resurfaces for review.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MISTAKE_HALF_LIFE_MS = 14 * DAY_MS; // a struggle's weight halves every 2 weeks
+const REVIEW_INTERVAL_MS = 21 * DAY_MS; // mastered but idle this long → due for review
+const FORGET_THRESHOLD = 0.5; // decayed weight at/below this is forgotten
+const MAX_MASTERED = 6; // bound the mastered list so a long history can't blow context
+const MAX_STRUGGLES = 3;
+const MAX_REVIEW = 3;
+const RELEVANCE_BONUS = 100; // a stat matching the current context ranks first
+
 // Newbies learn layer-by-layer; intermediate/advanced see CFOP framing.
 export function deriveMethod(level: Level): Method {
   return level === 'newbie' ? 'lbl' : 'cfop';
@@ -183,6 +196,30 @@ export function recordStageResult(
   return p;
 }
 
+function ageMs(stat: StageStat, now: number): number {
+  const t = Date.parse(stat.lastAt);
+  // Legacy/missing timestamps are treated as "just now" so we never forget data
+  // we can't date.
+  return Number.isNaN(t) ? 0 : Math.max(0, now - t);
+}
+
+// Exponential fade: 1 right after an attempt, halving every MISTAKE_HALF_LIFE_MS.
+export function decayFactor(age: number, halfLife: number = MISTAKE_HALF_LIFE_MS): number {
+  return age <= 0 ? 1 : Math.pow(0.5, age / halfLife);
+}
+
+// A struggle's effective weight: cumulative mistakes faded by how long ago the
+// learner last touched the stage. Old pain fades; recent pain stays sharp.
+export function decayedWeight(stat: StageStat, now: number): number {
+  return stat.mistakes * decayFactor(ageMs(stat, now));
+}
+
+// A mastered skill left idle past the review interval is "due for review" — the
+// forgetting curve, surfaced as spaced repetition. Mastery itself stays sticky.
+export function isDueForReview(stat: StageStat, now: number): boolean {
+  return stat.mastered && ageMs(stat, now) >= REVIEW_INTERVAL_MS;
+}
+
 // A compact, structured summary of the learner sent to the backend each request
 // so Qwen can remember and adapt (see narrative.llm_narrator). Kept small on
 // purpose — a couple of struggle stages and the mastered list, not raw history.
@@ -199,16 +236,48 @@ export interface MemoryDigest {
   lastKind?: HistoryEntry['kind'];
   struggles: DigestStage[];
   mastered: string[];
+  dueForReview: string[];
 }
 
-export function buildMemoryDigest(profile: UserProfile): MemoryDigest {
+export interface DigestOptions {
+  now?: number;
+  /** Current stage the learner is on, so the relevant memory ranks first. */
+  context?: string;
+}
+
+export function buildMemoryDigest(profile: UserProfile, opts: DigestOptions = {}): MemoryDigest {
+  const now = opts.now ?? Date.now();
+  const { context } = opts;
   const stats = Object.values(profile.performance);
+
+  // Retrieval: rank unmastered struggles by faded severity (with a big bonus
+  // when the stage matches what the learner is doing now), and FORGET those
+  // whose weight has decayed at/below the threshold — they no longer recall.
   const struggles = stats
-    .filter((s) => !s.mastered && s.mistakes > 0)
-    .sort((a, b) => b.mistakes - a.mistakes)
-    .slice(0, 3)
-    .map((s) => ({ stage: s.stage, label: s.label, mistakes: s.mistakes }));
-  const mastered = stats.filter((s) => s.mastered).map((s) => s.label ?? s.stage);
+    .filter((s) => !s.mastered && decayedWeight(s, now) > FORGET_THRESHOLD)
+    .map((s) => ({
+      stat: s,
+      score: decayedWeight(s, now) + (context && s.stage === context ? RELEVANCE_BONUS : 0)
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_STRUGGLES)
+    .map(({ stat }) => ({ stage: stat.stage, label: stat.label, mistakes: stat.mistakes }));
+
+  // Mastered: most-recently-practiced first, bounded so a long history fits a
+  // limited context window.
+  const mastered = stats
+    .filter((s) => s.mastered)
+    .sort((a, b) => ageMs(a, now) - ageMs(b, now))
+    .slice(0, MAX_MASTERED)
+    .map((s) => s.label ?? s.stage);
+
+  // The other half of forgetting: stale mastered skills resurface for review.
+  const dueForReview = stats
+    .filter((s) => isDueForReview(s, now))
+    .sort((a, b) => ageMs(b, now) - ageMs(a, now))
+    .slice(0, MAX_REVIEW)
+    .map((s) => s.label ?? s.stage);
+
   const last = profile.history[profile.history.length - 1];
   return {
     level: profile.level,
@@ -216,6 +285,7 @@ export function buildMemoryDigest(profile: UserProfile): MemoryDigest {
     sessions: profile.history.length,
     lastKind: last?.kind,
     struggles,
-    mastered
+    mastered,
+    dueForReview
   };
 }

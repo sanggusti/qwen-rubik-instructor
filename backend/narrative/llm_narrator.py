@@ -7,6 +7,7 @@ a deterministic template so a frame never blocks the stream.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterator, Optional, Tuple
 
@@ -14,7 +15,8 @@ from openai import OpenAI
 
 from config import settings
 from narrative.schema import FrameNarration, VisualFrame, VisualPlan
-from narrative.validator import validate_narration
+from narrative.validator import parse_narration, validate_narration
+from pipeline.cube.facelet import is_solved
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "output_contracts.txt"
 
@@ -77,7 +79,11 @@ def fallback_narration(plan: VisualPlan, frame: VisualFrame) -> FrameNarration:
 
 
 def get_client() -> OpenAI:
-    return OpenAI(api_key=settings.dashscope_api_key, base_url=settings.dashscope_base_url)
+    return OpenAI(
+        api_key=settings.dashscope_api_key,
+        base_url=settings.dashscope_base_url,
+        timeout=settings.qwen_timeout_s,
+    )
 
 
 def _complete(client: OpenAI, model: str, messages: list[dict]) -> str:
@@ -105,20 +111,32 @@ def narrate_frame(
         {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": build_user_message(plan, frame, tone, level, continuity)},
     ]
-    for attempt in range(2):
-        try:
-            content = _complete(client, model, messages)
-        except Exception:
-            break
-        ok, reason, narration = validate_narration(frame, content)
+    # One attempt only: a re-prompt doubles the per-frame latency, and frames are
+    # narrated concurrently, so a bad frame falls back to its deterministic text
+    # rather than holding up the whole lesson.
+    try:
+        content = _complete(client, model, messages)
+        ok, _reason, narration = validate_narration(frame, content)
         if ok and narration is not None:
             return narration, False
-        # Re-prompt once with the specific problem.
-        messages.append({"role": "assistant", "content": content})
-        messages.append(
-            {"role": "user", "content": f"That was invalid ({reason}). Fix it and {_JSON_INSTRUCTION}"}
-        )
+    except Exception:
+        pass
     return fallback_narration(plan, frame), True
+
+
+# The memory we inject into a prompt competes with the actual frame for the
+# context window, so it's hard-capped. Stage-specific notes are placed before the
+# general welcome so they survive the truncation.
+MEMORY_CHAR_BUDGET = 240
+
+
+def _within_budget(text: str, budget: int = MEMORY_CHAR_BUDGET) -> str:
+    """Truncate a memory block to the budget on a word boundary, never mid-word."""
+    text = text.strip()
+    if len(text) <= budget:
+        return text
+    cut = text[:budget].rsplit(" ", 1)[0]
+    return (cut or text[:budget]).rstrip() + "…"
 
 
 def welcome_line(memory: Optional[dict]) -> str:
@@ -136,8 +154,11 @@ def welcome_line(memory: Optional[dict]) -> str:
     mastered = memory.get("mastered") or []
     if mastered:
         parts.append(f"They've already got: {', '.join(mastered[:3])}.")
+    due = memory.get("dueForReview") or []
+    if due:
+        parts.append(f"It's been a while since they practised: {', '.join(due[:2])}.")
     parts.append("A brief, specific welcome-back nod is welcome on this first frame only.")
-    return " ".join(parts)
+    return _within_budget(" ".join(parts))
 
 
 def stage_struggle_note(memory: Optional[dict], stage: str) -> str:
@@ -151,25 +172,50 @@ def stage_struggle_note(memory: Optional[dict], stage: str) -> str:
     return ""
 
 
+# Q&A is grounded by the live cube state and the moves in play, but (unlike
+# frame narration) the answer isn't restricted to the frame's move list — a real
+# question often needs context the strict allow-list would reject. Keep it short
+# and honest; don't invent a cube state beyond what's provided.
 _ASK_SYSTEM = (
     "You are a patient Rubik's cube tutor answering a learner's question while they "
-    "work on a live cube. Answer in ONE or TWO short, plain sentences. Only mention "
-    "cube moves that appear in the provided move list; never invent moves or claim a "
-    "state you weren't told. " + _JSON_INSTRUCTION
+    "work on a live cube. Answer their actual question directly in ONE or TWO short, "
+    "plain sentences, grounded in the cube state and moves provided. Don't claim a "
+    "cube state you weren't told. " + _JSON_INSTRUCTION
 )
 
 
-def build_ask_message(question: str, *, stage: str, moves: list[str], level: str, memory: Optional[dict]) -> str:
+def _state_line(state: Optional[dict]) -> Optional[str]:
+    if not state:
+        return None
+    try:
+        solved = is_solved(state)
+    except Exception:
+        return None
+    return "The cube is currently solved." if solved else "The cube is not solved yet."
+
+
+def build_ask_message(
+    question: str,
+    *,
+    stage: str,
+    moves: list[str],
+    level: str,
+    memory: Optional[dict],
+    state: Optional[dict] = None,
+) -> str:
     move_str = " ".join(moves) if moves else "(no specific moves in play)"
     lines = [
         f"The learner is a {level} solver working on stage: {stage or 'a solve'}.",
         f"Moves in play right now: {move_str}.",
     ]
+    state_line = _state_line(state)
+    if state_line:
+        lines.append(state_line)
     welcome = welcome_line(memory)
     if welcome:
         lines.append(welcome)
     lines.append(f"Their question: {question}")
-    lines.append("Answer briefly, only referencing the moves listed above.")
+    lines.append("Answer their question helpfully and briefly.")
     return "\n".join(lines)
 
 
@@ -180,36 +226,32 @@ def answer_question(
     moves: Optional[list[str]] = None,
     level: str = "newbie",
     memory: Optional[dict] = None,
+    state: Optional[dict] = None,
     client: Optional[OpenAI] = None,
     model: Optional[str] = None,
 ) -> Tuple[str, bool]:
-    """Answer a free-form learner question, grounded in the moves in play.
+    """Answer a free-form learner question, grounded in the live cube state and
+    the moves in play. Returns (text, used_fallback).
 
-    Returns (text, used_fallback). Reuses validate_narration so the answer can't
-    mention moves outside the provided list; re-prompts once, then falls back.
+    A single LLM call (no re-prompt) for low latency. The answer is parsed for
+    shape only — unlike frame narration it is NOT restricted to a move allow-list,
+    since a genuine question often needs to reference context outside it.
     """
     client = client or get_client()
     model = model or settings.qwen_model
     moves = moves or []
-    # Synthetic frame: validation only needs `moves` (the allow-list) and `stage`.
-    frame = VisualFrame(id="ask", stage=stage or "ask", moves=moves, focus="", expected="")
     messages = [
         {"role": "system", "content": _ASK_SYSTEM},
         {"role": "user", "content": build_ask_message(
-            question, stage=stage, moves=moves, level=level, memory=memory)},
+            question, stage=stage, moves=moves, level=level, memory=memory, state=state)},
     ]
-    for _ in range(2):
-        try:
-            content = _complete(client, model, messages)
-        except Exception:
-            break
-        ok, reason, narration = validate_narration(frame, content)
-        if ok and narration is not None:
-            return narration.text, False
-        messages.append({"role": "assistant", "content": content})
-        messages.append(
-            {"role": "user", "content": f"That was invalid ({reason}). Fix it and {_JSON_INSTRUCTION}"}
-        )
+    try:
+        content = _complete(client, model, messages)
+        text = parse_narration(content).text.strip()
+        if text:
+            return text, False
+    except Exception:
+        pass
     return ("Take it one move at a time, and use Show next move if you get stuck.", True)
 
 
@@ -221,20 +263,36 @@ def narrate_plan(
     level: str = "newbie",
     memory: Optional[dict] = None,
 ) -> Iterator[Tuple[VisualFrame, FrameNarration, bool]]:
-    """Yield (frame, narration, used_fallback) for each frame, in order."""
+    """Yield (frame, narration, used_fallback) for each frame, in order.
+
+    Frames are independent LLM calls, so they're narrated concurrently across a
+    small thread pool (the OpenAI client is thread-safe); results are yielded in
+    the original frame order so the SSE stream and progress UI stay unchanged.
+    """
     client = client or get_client()
     model = model or settings.qwen_model
     tone = pick_tone(plan.id)
     welcome = welcome_line(memory)
-    for i, frame in enumerate(plan.frames):
+
+    def continuity_for(i: int, frame: VisualFrame) -> str:
+        # Stage-specific note first: it's the most relevant memory for this frame,
+        # so it survives the budget if the general welcome has to be trimmed.
         extra = []
-        if i == 0 and welcome:
-            extra.append(welcome)
         note = stage_struggle_note(memory, frame.stage)
         if note:
             extra.append(note)
-        narration, used_fallback = narrate_frame(
+        if i == 0 and welcome:
+            extra.append(welcome)
+        return _within_budget(" ".join(extra))
+
+    def run(i: int, frame: VisualFrame) -> Tuple[FrameNarration, bool]:
+        return narrate_frame(
             plan, frame, client=client, model=model, tone=tone, level=level,
-            continuity=" ".join(extra),
+            continuity=continuity_for(i, frame),
         )
+
+    workers = max(1, min(settings.narration_workers, len(plan.frames)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = list(pool.map(lambda pair: run(*pair), enumerate(plan.frames)))
+    for frame, (narration, used_fallback) in zip(plan.frames, results):
         yield frame, narration, used_fallback

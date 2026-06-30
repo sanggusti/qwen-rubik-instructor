@@ -14,7 +14,7 @@ import uuid
 from typing import List, Optional
 
 from narrative.schema import VisualFrame, VisualPlan
-from pipeline.cube.facelet import State
+from pipeline.cube.facelet import State, apply_moves, clone_state
 from pipeline.cube.notation import invert, normalize
 from pipeline.solver import SolveStage, solve
 
@@ -121,9 +121,13 @@ def _solve_frames(state: State, method: str = "lbl") -> List[VisualFrame]:
             dwell_ms=INTRO_DWELL_MS,
         )
     ]
+    # Track the cube state as each stage's moves are performed, so a solve lesson
+    # can grade each stage against the exact state the learner should reach.
+    cursor = clone_state(state)
     for stage in stages:
         if not stage.moves:
             continue  # this phase is already done for this scramble
+        apply_moves(cursor, stage.moves)
         frames.append(
             VisualFrame(
                 id=stage.name,
@@ -132,6 +136,7 @@ def _solve_frames(state: State, method: str = "lbl") -> List[VisualFrame]:
                 highlight=stage.highlight,
                 focus=stage.focus or f"{stage.highlight} pieces",
                 expected=stage.goal,
+                expected_state=clone_state(cursor),
                 dwell_ms=STAGE_DWELL_MS,
                 pace="step",  # solving moves play one-by-one so a human can follow
             )

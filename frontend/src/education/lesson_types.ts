@@ -1,9 +1,15 @@
 export type LessonTrack = 'beginner' | 'time-improvement';
 
+import type { State } from '../core/state';
+import type { CubeletType } from '../scene/cube/cubelets';
+
 export type StepValidator =
     | { type: 'manual' }
     | { type: 'moveSequence'; moves: string[] }
-    | { type: 'cubeSolved' };
+    | { type: 'cubeSolved' }
+    // Completes when the cube reaches `expected` — the exact state after a solve
+    // stage's moves. Lets the generated solve lesson auto-grade each stage.
+    | { type: 'cubeState'; expected: State };
 
 export interface LessonStep {
     id: string;
@@ -13,6 +19,9 @@ export interface LessonStep {
     expectedMoves?: string[];
     hints?: string[];
     validator: StepValidator;
+    // Cubelet class to spotlight while this step is shown (e.g. 'edge' for the
+    // cross, 'corner' for corners). Null/absent restores full opacity.
+    highlight?: CubeletType;
 }
 
 export interface Lesson {

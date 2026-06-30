@@ -62,6 +62,17 @@ export function saveProgress(
     }
 }
 
+// True once the learner has finished the lesson at least once — the signal the
+// gated path uses to unlock the next lesson. Keys off the lesson's own progress
+// (completedAt), so unlocking follows actual completion rather than the indirect
+// performance/mastery counters.
+export function isLessonComplete(
+    lessonId: string,
+    storage: StorageLike | null = defaultStorage()
+): boolean {
+    return !!loadProgress(lessonId, storage).completedAt;
+}
+
 export function clearProgress(
     lessonId: string,
     storage: StorageLike | null = defaultStorage()

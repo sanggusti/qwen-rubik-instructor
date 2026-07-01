@@ -11,9 +11,13 @@ focused fixes (Parts 4–5) on the same headline feature, a pivot (Part 6) to ma
 the memory good enough for the **Qwen Cloud Hackathon → MemoryAgent track**, and a
 cynical QA pass (Part 7) that caught the grader scoring the wrong thing. On
 2026-06-30 the front end was rewritten onto SvelteKit (Part 8) and a QA pass on
-the live app found and fixed why narration felt slow (Part 9). Every phase shipped
-with tests; the current state is backend 709 tests, frontend 202 tests, all green,
-plus live model calls and in-browser checks confirming the end-to-end loop.
+the live app found and fixed why narration felt slow (Part 9). On 2026-07-01 the
+hint surface grew a **reference cube** — a "Show me how" window seeded from
+facelets (Part 10) — and two rounds of live-UI feedback rebuilt the walkthrough
+player to teach on that cube and leave the learner's alone (Part 11). Every phase
+shipped with tests; the current state is backend 709 tests, frontend 225 tests,
+all green, plus live model calls and in-browser checks confirming the end-to-end
+loop.
 
 ## The posts
 
@@ -71,17 +75,41 @@ plus live model calls and in-browser checks confirming the end-to-end loop.
    quietly turned into a wait-for-everything barrier. A model default and `submit`
    instead of `map`; first beat now lands in ~1s.
 
+10. **[Show, don't tell: a reference cube seeded from facelets](./10-show-dont-tell-a-reference-cube-seeded-from-facelets.md)**
+    Hints were words about moves you couldn't see. A dimmed "Show me how" cube in
+    a floating window fixes that — but only if you can put an *arbitrary* state on
+    a fresh cube. Painting stickers instead of solving, a coordinate→facelet-index
+    map derived from the engine's own move cycles, and a test that proves the map
+    against the animator's geometry rather than itself.
+
+11. **[The feedback that rebuilt the player: teach on the reference cube, not the learner's](./11-the-feedback-that-rebuilt-the-player.md)**
+    Two rounds of "watch it in the real UI" took the first cut apart: a "self-
+    contained" solve plan made the learner wait ~13s to rebuild a scramble they
+    already had (fixed with `startFromCurrent`), and a stuck highlight on the
+    learner's cube exposed the wrong default — the walkthrough should drive the
+    *reference* cube, not theirs. Re-pointing the engine's cube API at the window,
+    moving highlights with it, and gating the learner's cube behind "Solve my cube"
+    / "Reset to checkpoint."
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-10. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
+12. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
     service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
     services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-11. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
+13. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
     client-side memory lives.
-12. **The 3-minute demo** — the cross-session memory loop, end to end.
+14. **The 3-minute demo** — the cross-session memory loop, end to end.
+
+## Research (design notes, not yet code)
+
+- **[Turso (libSQL) as the persistent-memory layer](./research/turso-persistent-memory.md)**
+  The case for Turso and a low-blast-radius design to persist and *semantically
+  recall* learner memory server-side — schema, integration, and the recall
+  features that would make the MemoryAgent track outstanding — while keeping the
+  browser-local path working as a fallback.
 
 ## The throughline
 

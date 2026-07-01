@@ -5,6 +5,7 @@
 // it waits for the animator to settle, dwells, then steps to the next beat.
 
 import { Emitter } from '../cube/events';
+import { invertMove } from '../cube/state';
 import type { CubeletType } from '../scene/cubelets';
 
 export interface Beat {
@@ -28,6 +29,13 @@ export interface Walkthrough {
   title: string;
   description: string;
   beats: Beat[];
+  /**
+   * True for a solve of the learner's *current* cube: playback starts from the
+   * cube as-is (it already holds the scramble) instead of resetting to solved and
+   * re-creating the scramble. beat 0 still carries the scramble as data (for the
+   * reference/demo cube), but the live cube never replays it.
+   */
+  startFromCurrent?: boolean;
 }
 
 // The slice of the cube API the engine needs; a narrow surface keeps tests light.
@@ -136,8 +144,27 @@ export class WalkthroughEngine {
     this.playing = false;
     this.finished = false;
     this.current = found;
-    this.seek(0);
+    if (found.startFromCurrent) {
+      // The cube already holds the learner's scramble (this walkthrough was
+      // generated from it), so don't reset + re-scramble. Sit on the intro beat
+      // with its scramble treated as already applied; play advances into the solve.
+      this.settleAtIntro(found);
+    } else {
+      this.seek(0);
+    }
     this.emit();
+  }
+
+  // Position at beat 0 without touching the cube — the live cube is already at the
+  // intro's result (the learner's scramble). moveIndex sits at the end so play()
+  // advances straight into the first solving beat.
+  private settleAtIntro(w: Walkthrough): void {
+    const intro = w.beats[0];
+    this.beatIndex = 0;
+    this.moveCount = intro?.moves?.length ?? 0;
+    this.moveIndex = this.moveCount - 1;
+    this.currentMove = null;
+    this.setHighlight(intro?.highlight ?? null);
   }
 
   close(): void {
@@ -155,6 +182,19 @@ export class WalkthroughEngine {
 
   play(): void {
     if (!this.current || this.playing) return;
+    // Replay after finishing a start-from-current solve: rewind to the scramble by
+    // undoing the solution (never a re-scramble), then play once settled.
+    if (this.finished && this.current.startFromCurrent) {
+      this.finished = false;
+      this.playing = true;
+      this.seekFromCurrent(0, false);
+      this.emit();
+      this.waitSettle(() => {
+        this.api.setMoveDuration?.(PLAYBACK_MOVE_MS);
+        this.resumePlayback();
+      });
+      return;
+    }
     if (this.finished) this.seek(0);
     this.finished = false;
     this.playing = true;
@@ -177,7 +217,7 @@ export class WalkthroughEngine {
     this.playing = false;
     this.finished = false;
     this.api.setMoveDuration?.();
-    this.seek(0);
+    this.goTo(0);
     this.emit();
   }
 
@@ -215,12 +255,20 @@ export class WalkthroughEngine {
     this.playing = false;
     this.finished = false;
     this.api.setMoveDuration?.();
-    this.seek(this.beatIndex - 1);
+    this.goTo(this.beatIndex - 1);
     this.emit();
   }
 
   dispose(): void {
     this.clearTimer();
+  }
+
+  // Navigate to `index`. For a start-from-current solve we rewind/advance the
+  // *solution* moves relative to the live cube (never a reset + re-scramble);
+  // otherwise we hard-seek from solved.
+  private goTo(index: number): void {
+    if (this.current?.startFromCurrent) this.seekFromCurrent(index);
+    else this.seek(index);
   }
 
   // Hard seek via reset + cumulative replay (used by select / stop / previous).
@@ -240,6 +288,66 @@ export class WalkthroughEngine {
     this.moveIndex = this.moveCount - 1;
     this.currentMove = null;
     this.setHighlight(beat.highlight ?? null);
+  }
+
+  // Seek without a reset: reconcile the solution moves currently on the live cube
+  // with those needed at `index` by undoing the surplus (inverses) and applying
+  // the remainder. beat 0 (the scramble) is never applied — the cube already holds
+  // it. The reconciling burst plays fast, then the move duration is restored.
+  private seekFromCurrent(index: number, restoreDuration = true): void {
+    if (!this.current) return;
+    const current = this.appliedSolutionMoves();
+    const target: string[] = [];
+    for (let k = 1; k <= index; k++) {
+      const m = this.current.beats[k]?.moves;
+      if (m?.length) target.push(...m);
+    }
+    let common = 0;
+    while (common < current.length && common < target.length && current[common] === target[common]) {
+      common += 1;
+    }
+    const burst = [...current.slice(common).reverse().map(invertMove), ...target.slice(common)];
+    if (burst.length) {
+      this.api.setMoveDuration?.(SETUP_MOVE_MS);
+      this.api.applyMoves(burst);
+      if (restoreDuration) this.restoreDurationWhenIdle();
+    }
+    this.beatIndex = index;
+    const beat = this.current.beats[index];
+    this.moveCount = beat?.moves?.length ?? 0;
+    this.moveIndex = this.moveCount - 1;
+    this.currentMove = null;
+    this.setHighlight(beat?.highlight ?? null);
+  }
+
+  // The solution moves currently applied to the live cube (beats 1..current,
+  // partial for the current beat). Excludes beat 0 — the scramble the cube already
+  // holds and which we never replay.
+  private appliedSolutionMoves(): string[] {
+    const moves: string[] = [];
+    if (!this.current) return moves;
+    for (let k = 1; k < this.beatIndex; k++) {
+      const m = this.current.beats[k]?.moves;
+      if (m?.length) moves.push(...m);
+    }
+    if (this.beatIndex >= 1) {
+      const cur = this.current.beats[this.beatIndex]?.moves ?? [];
+      for (let i = 0; i <= this.moveIndex && i < cur.length; i += 1) moves.push(cur[i]);
+    }
+    return moves;
+  }
+
+  // Restore the default move duration once the reconciling burst settles, so later
+  // manual cube turns aren't stuck at the fast setup speed.
+  private restoreDurationWhenIdle(): void {
+    const poll = (): void => {
+      if (this.api.isBusy()) {
+        this.timer = setTimeout(poll, POLL_MS);
+        return;
+      }
+      this.api.setMoveDuration?.();
+    };
+    this.timer = setTimeout(poll, POLL_MS);
   }
 
   // Resume auto-play from the current cursor: continue mid-beat, or advance.

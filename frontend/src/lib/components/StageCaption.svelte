@@ -2,6 +2,7 @@
   import { lessonStore } from '../stores/lesson.svelte';
   import { practiceStore } from '../stores/practice.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
+  import { demoStore } from '../stores/demo.svelte';
 
   type Owner = 'lesson' | 'practice' | 'walkthrough';
 
@@ -69,7 +70,7 @@
 </script>
 
 {#if active}
-  <div class="stage is-open">
+  <div class="stage is-open" class:demo-open={demoStore.open}>
     <button class="stage-close" type="button" aria-label="End" onclick={close}>×</button>
     <div class="stage-title">{active.title}</div>
     <p class="stage-body">{displayedBody}</p>
@@ -149,6 +150,20 @@
     box-shadow: 0 0 12px var(--accent-b-dim);
   }
 
+  /* While the demo window is docked on the right, drop the caption to the bottom
+     of the free space on the left (under the shifted cube) so it isn't covered. */
+  .stage.demo-open {
+    top: auto;
+    bottom: 20px;
+    left: 16px;
+    right: calc(min(30vw, 360px) + 48px);
+    transform: none;
+    width: auto;
+    max-width: 520px;
+    margin: 0 auto;
+    max-height: 24vh;
+  }
+
   @media (max-width: 760px) {
     .stage {
       top: auto;
@@ -157,6 +172,19 @@
       transform: translateX(-50%);
       width: min(92vw, 440px);
       max-height: 30vh;
+    }
+    /* Mobile demo is a bottom sheet, so tuck the caption top-right — below the
+       top-left Guide toggle and above the sheet. */
+    .stage.demo-open {
+      top: calc(env(safe-area-inset-top) + 80px);
+      bottom: auto;
+      left: auto;
+      right: 10px;
+      transform: none;
+      width: min(72vw, 320px);
+      max-width: none;
+      margin: 0;
+      max-height: 17vh;
     }
   }
 </style>

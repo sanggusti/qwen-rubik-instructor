@@ -3,6 +3,7 @@
   import CubeMesh from '$lib/scene/CubeMesh.svelte';
   import TouchMovePad from '$lib/components/TouchMovePad.svelte';
   import StageCaption from '$lib/components/StageCaption.svelte';
+  import DemoCubeWindow from '$lib/components/DemoCubeWindow.svelte';
   import HudBar from '$lib/components/HudBar.svelte';
   import LandingPage from '$lib/landing/LandingPage.svelte';
   import { lessonStore } from '$lib/stores/lesson.svelte';
@@ -31,7 +32,8 @@
     <CubeMesh />
   </CubeCanvas>
 
-  <TouchMovePad open={keypadOpen} />
-  <StageCaption />
-  <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />
+<TouchMovePad open={keypadOpen} />
+<StageCaption />
+<DemoCubeWindow />
+<HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />
 {/if}

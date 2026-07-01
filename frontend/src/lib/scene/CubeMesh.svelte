@@ -9,6 +9,7 @@
   import { CubeView } from './cube-view';
   import { cubeStore } from '../stores/cube.svelte';
   import { cubeViewStore } from '../stores/cube-view.svelte';
+  import { demoStore } from '../stores/demo.svelte';
 
   const cube = new Cube();
   const animator = new MoveAnimator(cube, cube.root);
@@ -63,6 +64,9 @@
   // explicit input — no idle/standby drift.
   useTask(() => {
     const now = performance.now();
+    // Slide the learner's cube aside while the demo window is open (desktop), so
+    // the reference cube docked on the right doesn't cover it. Eased per frame.
+    cube.root.position.x += (demoStore.mainCubeShift - cube.root.position.x) * 0.15;
     animator.update(now);
     cubeView.update(now);
   });

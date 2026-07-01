@@ -10,7 +10,6 @@
 
 <style>
   .footer {
-    scroll-snap-align: end;
     display: flex;
     flex-wrap: wrap;
     align-items: center;

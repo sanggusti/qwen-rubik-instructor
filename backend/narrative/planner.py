@@ -145,9 +145,11 @@ def _solve_frames(state: State, method: str = "lbl") -> List[VisualFrame]:
 
 
 def build_solve_walkthrough(state: State, method: str = "lbl") -> VisualPlan:
-    # The walkthrough player resets to solved before playing, so the intro frame
-    # first re-creates the user's scramble (inverse of the whole solution); the
-    # later frames then solve it. This keeps the walkthrough self-contained.
+    # This solves the learner's *current* cube, so the player starts from it as-is
+    # (start_from_current) — no reset, no re-scramble. The intro frame still carries
+    # the scramble (inverse of the whole solution) as data so the reference/demo
+    # cube can reconstruct the pre-solve position from solved, but the live cube
+    # never replays it.
     frames = _solve_frames(state, method)
     solution = [m for fr in frames for m in fr.moves]
     frames[0] = frames[0].model_copy(
@@ -164,6 +166,7 @@ def build_solve_walkthrough(state: State, method: str = "lbl") -> VisualPlan:
         title=title,
         description="A staged walkthrough that solves your scrambled cube.",
         frames=frames,
+        start_from_current=True,
     )
 
 

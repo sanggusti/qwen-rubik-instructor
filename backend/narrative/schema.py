@@ -124,6 +124,10 @@ class VisualPlan(CamelModel):
     track: Optional[LessonTrack] = None
     audience: Optional[str] = None
     frames: list[VisualFrame]
+    # True when the plan solves the learner's *current* cube: the player should
+    # start from the cube as-is (it already holds the scramble) instead of
+    # resetting to solved and re-creating the scramble. See build_solve_walkthrough.
+    start_from_current: bool = False
 
 
 # --- LLM narration (the ONLY thing the model produces) --------------------

@@ -91,6 +91,17 @@ export class MoveAnimator {
 
   isBusy(): boolean { return this.current !== null || this.queue.length > 0; }
 
+  // Abandon the current move and drain the queue without applying anything. Used
+  // by the demo cube before it rebuilds + re-seeds, so an in-flight quarter-turn
+  // doesn't re-attach now-discarded cubie meshes on its next finish.
+  cancel(): void {
+    if (this.current) {
+      this.parent.remove(this.current.pivot);
+      this.current = null;
+    }
+    this.queue.length = 0;
+  }
+
   update(now: number): void {
     if (!this.current && this.queue.length > 0) this.beginNext(now);
     if (!this.current) return;

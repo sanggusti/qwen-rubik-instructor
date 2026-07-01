@@ -42,6 +42,8 @@ interface MetaEvent {
   track?: Lesson['track'];
   audience?: string;
   frameCount: number;
+  /** Solve-of-current-cube walkthroughs play from the live cube, not from solved. */
+  startFromCurrent?: boolean;
 }
 
 async function* streamEvents(path: string, body: unknown): AsyncGenerator<Record<string, unknown>> {
@@ -149,7 +151,13 @@ export async function generateWalkthrough(opts: GenerateOptions): Promise<Walkth
     }
   }
   if (!meta) throw new Error('Backend stream ended without content');
-  return { id: meta.id, title: meta.title, description: meta.description, beats };
+  return {
+    id: meta.id,
+    title: meta.title,
+    description: meta.description,
+    beats,
+    startFromCurrent: meta.startFromCurrent ?? false
+  };
 }
 
 export async function generateLesson(opts: GenerateOptions): Promise<Lesson> {

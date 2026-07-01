@@ -117,6 +117,7 @@ def _stream(plan: VisualPlan, level: str, memory: Optional[dict]) -> Iterator[st
         "track": plan.track,
         "audience": plan.audience,
         "frameCount": len(plan.frames),
+        "startFromCurrent": plan.start_from_current,
     })
     for index, (frame, narration, used_fallback) in enumerate(
         narrate_plan(plan, level=level, memory=memory)

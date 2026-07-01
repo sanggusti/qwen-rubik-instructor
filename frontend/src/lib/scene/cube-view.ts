@@ -177,6 +177,13 @@ export class CubeView {
 // Build a camera-facing sprite showing `text`, drawn to a canvas texture. Kept
 // self-contained so the scene needs no extra dependencies or renderers.
 function makeTextSprite(text: string, scale: number): THREE.Sprite {
+  // Headless (node test) fallback: the highlight/opacity logic doesn't need the
+  // label texture, so return a bare sprite when there's no DOM to draw on.
+  if (typeof document === 'undefined') {
+    const bare = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+    bare.scale.set(scale, scale, 1);
+    return bare;
+  }
   const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = size;

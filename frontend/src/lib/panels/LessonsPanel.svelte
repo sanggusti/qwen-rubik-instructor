@@ -121,8 +121,15 @@
         <button type="button" class="lsn-btn" onclick={() => lessonStore.applySetupMoves()}>Set up step</button>
       {/if}
       {#if step.expectedMoves?.length}
+        <button type="button" class="lsn-btn" onclick={() => { lessonStore.showDemo(); onSelect?.(); }}>Show me how</button>
         <button type="button" class="lsn-btn" onclick={() => lessonStore.applyExampleMoves()}>Apply example moves</button>
       {/if}
+      <button
+        type="button"
+        class="lsn-btn"
+        class:emphasis={coachingMessages.some((m) => m.kind === 'mistake')}
+        onclick={() => lessonStore.backToCheckpoint()}
+      >Back to checkpoint</button>
       {#if step.validator.type === 'manual' && !stepCompleted}
         <button type="button" class="lsn-btn" onclick={() => lessonStore.markComplete()}>Mark complete</button>
       {/if}
@@ -248,6 +255,11 @@
   .lsn-btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+  .lsn-btn.emphasis {
+    border-color: var(--accent-b);
+    color: var(--accent-b);
+    box-shadow: 0 0 12px var(--accent-b-dim);
   }
   .lsn-coaching {
     display: flex;

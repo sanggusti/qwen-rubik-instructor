@@ -130,7 +130,9 @@
     left: 16px;
     top: 50%;
     transform: translateY(-50%);
-    z-index: 20;
+    /* Above .modal-backdrop (100): the tab rail stays clickable while a panel
+       is open, so switching tabs takes one click instead of two. */
+    z-index: 110;
     display: flex;
     align-items: flex-start;
     gap: 10px;

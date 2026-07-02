@@ -8,6 +8,12 @@
   import { lessonStore } from '$lib/stores/lesson.svelte';
   import { practiceStore } from '$lib/stores/practice.svelte';
   import { walkthroughStore } from '$lib/stores/walkthrough.svelte';
+  import { cubeStore } from '$lib/stores/cube.svelte';
+
+  // E2E hook: dev-only, stripped from production builds.
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).__cubeStore = cubeStore;
+  }
 
   // Only one experience runs at a time, so the stage caption has a single
   // owner. `keep: 'none'` ends every experience (used by tabs that own none,
@@ -20,6 +26,18 @@
 
   // Hidden by default on touch devices; HudBar's "Keypad" button reveals it.
   let keypadOpen = $state(false);
+
+  // First-visit controls hint: nothing else on this screen says how to turn
+  // the cube. Gone after the first completed move or once a lesson/drill/
+  // walkthrough owns the stage.
+  let hintDismissed = $state(false);
+  $effect(() => cubeStore.onMove(() => (hintDismissed = true)));
+  const hintVisible = $derived(
+    !hintDismissed &&
+      lessonStore.snapshot.lesson === null &&
+      practiceStore.snapshot.drill === null &&
+      walkthroughStore.snapshot.walkthrough === null
+  );
 </script>
 
 <CubeCanvas>
@@ -30,3 +48,40 @@
 <StageCaption />
 <DemoCubeWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />
+
+{#if hintVisible}
+  <div class="controls-hint">
+    Drag a face to turn it · keys <b>R L U D F B</b>, hold <b>Shift</b> to reverse · <b>Space</b> scramble · <b>Enter</b> reset · open <b>Guide</b> for lessons
+  </div>
+{/if}
+
+<style>
+  .controls-hint {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 10;
+    max-width: min(92vw, 640px);
+    text-align: center;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    pointer-events: none;
+  }
+  .controls-hint b {
+    color: var(--accent-b);
+    font-weight: 600;
+  }
+
+  @media (max-width: 760px) {
+    /* Sit above the bottom-centred Scramble/Reset quick actions. */
+    .controls-hint {
+      bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+  }
+</style>

@@ -26,6 +26,9 @@ class WalkthroughStore {
   snapshot: WalkthroughState = $state({ walkthrough: null });
   // Whether the learner has pressed "Solve my cube" for the active walkthrough.
   userCubeSolved = $state(false);
+  // Live progress while the solution animates on the user's cube (long solves
+  // take ~30s at learner pace — without this there's no cue anything is happening).
+  applyProgress = $state<{ done: number; total: number } | null>(null);
   // Moves applied to the user's cube by the button, so "Reset" can undo exactly.
   private userApplied: string[] = [];
 
@@ -116,6 +119,17 @@ class WalkthroughStore {
     if (this.userCubeSolved) return;
     const moves = this.solutionMoves();
     if (!moves.length) return;
+    this.applyProgress = { done: 0, total: moves.length };
+    const off = cubeStore.onMove(() => {
+      const p = this.applyProgress;
+      if (!p) {
+        off();
+        return;
+      }
+      const done = p.done + 1;
+      this.applyProgress = done >= p.total ? null : { done, total: p.total };
+      if (done >= p.total) off();
+    });
     cubeStore.applyMoves(moves);
     this.userApplied = moves.slice();
     this.userCubeSolved = true;
@@ -135,6 +149,7 @@ class WalkthroughStore {
   private clearUserCube(): void {
     this.userApplied = [];
     this.userCubeSolved = false;
+    this.applyProgress = null;
   }
 }
 

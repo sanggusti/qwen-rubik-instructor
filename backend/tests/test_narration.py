@@ -112,6 +112,15 @@ def test_falls_back_on_exception(monkeypatch):
     assert used_fallback and narration.text
 
 
+def test_get_client_with_empty_key_does_not_raise(monkeypatch):
+    # An empty DASHSCOPE_API_KEY used to crash OpenAI client construction —
+    # outside the callers' fallback guards, so /ask and the narrate workers
+    # returned 500 instead of falling back. Construction must succeed and defer
+    # the failure to the request, which the fallback paths already handle.
+    monkeypatch.setattr(settings, "dashscope_api_key", "")
+    assert llm_narrator.get_client() is not None
+
+
 # --- memory digest reaches the prompt ---
 
 class _Capture:

@@ -14,9 +14,14 @@ cynical QA pass (Part 7) that caught the grader scoring the wrong thing. On
 the live app found and fixed why narration felt slow (Part 9). On 2026-07-01 the
 hint surface grew a **reference cube** — a "Show me how" window seeded from
 facelets (Part 10) — and two rounds of live-UI feedback rebuilt the walkthrough
-player to teach on that cube and leave the learner's alone (Part 11). Every phase
-shipped with tests; the current state is backend 709 tests, frontend 225 tests,
-all green, plus live model calls and in-browser checks confirming the end-to-end
+player to teach on that cube and leave the learner's alone (Part 11). On
+2026-07-02 the whole learner journey finally got browser-level coverage: a
+Playwright E2E suite that runs the real backend with the LLM pinned to its
+deterministic fallback, a human QA pass on top of it, and a phone-emulation
+pass — together surfacing (and fixing) bugs no unit test could see (Part 12).
+Every phase shipped with tests; the current state is backend 710 tests,
+frontend 238 unit tests plus 25 E2E specs (desktop + mobile projects), all
+green, plus live model calls and in-browser checks confirming the end-to-end
 loop.
 
 ## The posts
@@ -91,17 +96,27 @@ loop.
     moving highlights with it, and gating the learner's cube behind "Solve my cube"
     / "Reset to checkpoint."
 
+12. **[Playable and learnable: an E2E suite that plays the whole game (without the API bill)](./12-playable-and-learnable-e2e-without-the-api-bill.md)**
+    The learner journey had 948 unit tests and zero browser coverage. Running
+    the real stack with the LLM pinned to its deterministic fallback (a dummy
+    key and an unroutable base URL), a 3-line window hook instead of thirty
+    test-ids, and a "money test" that scrambles, streams a narrated solve, and
+    asserts the cube actually ends solved. The browser found what units
+    couldn't: a 500 wearing a CORS mask, a typewriter frozen by its own effect
+    teardown, a backdrop eating visible clicks — then a human pass and real
+    phone emulation each found what the green suite couldn't.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-12. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
+13. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
     service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
     services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-13. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
+14. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
     client-side memory lives.
-14. **The 3-minute demo** — the cross-session memory loop, end to end.
+15. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## Research (design notes, not yet code)
 

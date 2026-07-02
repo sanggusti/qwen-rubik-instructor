@@ -85,8 +85,12 @@ def fallback_narration(plan: VisualPlan, frame: VisualFrame) -> FrameNarration:
 
 
 def get_client() -> OpenAI:
+    # An empty api_key makes the OpenAI constructor raise before any request —
+    # outside the callers' fallback guards, turning "no key configured" into a
+    # 500. A placeholder key defers the failure to the request itself, which
+    # the fallback paths already handle (same as an invalid key).
     return OpenAI(
-        api_key=settings.dashscope_api_key,
+        api_key=settings.dashscope_api_key or "missing-api-key",
         base_url=settings.dashscope_base_url,
         timeout=settings.qwen_timeout_s,
     )

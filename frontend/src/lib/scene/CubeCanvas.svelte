@@ -22,7 +22,16 @@
     renderer.setClearColor(0x000000, 0);
     return renderer;
   }
+
+  // The vertical fov is fixed, so on portrait viewports the horizontal view
+  // narrows and crops the cube — pull the camera back radially (same look-at
+  // direction) until the cube's bounding sphere fits the width again.
+  let innerWidth = $state(1);
+  let innerHeight = $state(1);
+  const zoomOut = $derived(Math.max(1, 0.67 / (innerWidth / innerHeight)));
 </script>
+
+<svelte:window bind:innerWidth bind:innerHeight />
 
 <div class="stage">
   <Canvas {createRenderer} dpr={[1, maxPixelRatio]}>
@@ -31,7 +40,7 @@
       fov={45}
       near={0.1}
       far={100}
-      position={[5, 5, 7]}
+      position={[5 * zoomOut, 5 * zoomOut, 7 * zoomOut]}
       oncreate={(ref) => ref.lookAt(0, 0, 0)}
     />
     <!-- A drag that starts on a sticker is claimed by attachDragControls (it calls

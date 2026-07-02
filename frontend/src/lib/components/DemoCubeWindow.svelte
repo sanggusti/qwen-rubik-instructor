@@ -11,6 +11,7 @@
 
   const eyebrow = $derived(demoStore.source === 'walkthrough' ? 'Walkthrough' : 'Show me how');
   const isSolve = $derived(!!walkthroughStore.snapshot.walkthrough?.startFromCurrent);
+  const progress = $derived(walkthroughStore.applyProgress);
 
   // Transparent renderer so the glass card shows through behind the cube, matching
   // CubeCanvas.svelte.
@@ -59,11 +60,11 @@
             type="button"
             disabled={walkthroughStore.userCubeSolved}
             onclick={() => walkthroughStore.solveUserCube()}
-          >{isSolve ? 'Solve my cube' : 'Apply to my cube'}</button>
+          >{progress ? `Solving… ${progress.done}/${progress.total}` : isSolve ? 'Solve my cube' : 'Apply to my cube'}</button>
           <button
             class="demo-btn"
             type="button"
-            disabled={!walkthroughStore.userCubeSolved}
+            disabled={!walkthroughStore.userCubeSolved || progress !== null}
             onclick={() => walkthroughStore.resetUserCubeToCheckpoint()}
           >Reset to checkpoint</button>
         </div>

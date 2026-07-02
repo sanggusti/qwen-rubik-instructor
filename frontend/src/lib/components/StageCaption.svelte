@@ -3,6 +3,13 @@
   import { practiceStore } from '../stores/practice.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
   import { demoStore } from '../stores/demo.svelte';
+  import { cubeStore } from '../stores/cube.svelte';
+  import { askQwen } from '../api/narrate';
+
+  // On touch devices the open keypad occupies the caption's mobile spot at the
+  // bottom of the screen; `raised` lifts the caption above it so the learner
+  // can read the step and tap moves at the same time.
+  let { raised = false }: { raised?: boolean } = $props();
 
   type Owner = 'lesson' | 'practice' | 'walkthrough';
 
@@ -18,7 +25,7 @@
     if (practice.drill) {
       const body = practice.completed
         ? `Drill complete ✓  Score ${practice.score}/${practice.roundCount}`
-        : `${practice.drill.prompt}  ·  ${practice.evaluation.message}`;
+        : `${practice.drill.prompt}  ·  Round ${Math.min(practice.round + 1, practice.roundCount)} of ${practice.roundCount} · Score ${practice.score}  ·  ${practice.evaluation.message}`;
       return { owner: 'practice', title: practice.drill.title, body, move: null, stream: false };
     }
     const walkthrough = walkthroughStore.snapshot;
@@ -32,6 +39,33 @@
   let displayedBody = $state('');
   let lastKey = '';
 
+  // Manual lesson steps tell the learner to "press Mark complete", so the
+  // button has to live here on the caption — the Lessons panel is closed.
+  const showMarkComplete = $derived.by(() => {
+    const s = lessonStore.snapshot;
+    return s.lesson !== null && s.step.validator.type === 'manual' && !s.stepCompleted;
+  });
+
+  let question = $state('');
+  let asking = $state(false);
+  let answer = $state('');
+
+  // Ask Qwen a free-form question, grounded in the current step and cube state.
+  async function ask(ev: SubmitEvent): Promise<void> {
+    ev.preventDefault();
+    const q = question.trim();
+    if (!q || asking) return;
+    asking = true;
+    try {
+      answer = await askQwen({ question: q, stage: active?.title, state: cubeStore.getState() });
+      question = '';
+    } catch (err) {
+      answer = `Couldn't ask: ${(err as Error).message}`;
+    } finally {
+      asking = false;
+    }
+  }
+
   // Stream walkthrough narration in (typewriter); other owners' text is set
   // immediately. Re-emits with the same (owner, text) — e.g. play/pause —
   // don't restart the stream.
@@ -40,25 +74,29 @@
     if (!a) {
       displayedBody = '';
       lastKey = '';
+      answer = '';
       return;
     }
     const key = `${a.owner}:${a.body}`;
     if (key === lastKey) return;
     lastKey = key;
+    answer = '';
     if (!a.stream) {
       displayedBody = a.body;
       return;
     }
     displayedBody = '';
     let i = 0;
-    let handle: ReturnType<typeof setTimeout>;
+    // The effect re-runs on every store emit (e.g. per-move progress), so the
+    // chain must survive re-runs: it self-terminates when a newer caption
+    // takes over instead of being torn down (which froze text mid-sentence).
     const step = (): void => {
+      if (lastKey !== key) return;
       i = Math.min(a.body.length, i + 1);
       displayedBody = a.body.slice(0, i);
-      if (i < a.body.length) handle = setTimeout(step, 22);
+      if (i < a.body.length) setTimeout(step, 22);
     };
     step();
-    return () => clearTimeout(handle);
   });
 
   function close(): void {
@@ -70,12 +108,30 @@
 </script>
 
 {#if active}
-  <div class="stage is-open" class:demo-open={demoStore.open}>
+  <div class="stage is-open" class:demo-open={demoStore.open} class:raised>
     <button class="stage-close" type="button" aria-label="End" onclick={close}>×</button>
     <div class="stage-title">{active.title}</div>
     <p class="stage-body">{displayedBody}</p>
     {#if active.move}
       <div class="stage-move">{active.move}</div>
+    {/if}
+    {#if showMarkComplete}
+      <button class="stage-btn" type="button" onclick={() => lessonStore.markComplete()}>Mark complete</button>
+    {/if}
+    <form class="stage-ask" onsubmit={ask}>
+      <input
+        class="stage-ask-input"
+        type="text"
+        placeholder="Ask Qwen about this step…"
+        aria-label="Ask Qwen"
+        bind:value={question}
+      />
+      <button class="stage-ask-btn" type="submit" disabled={!question.trim() || asking}>
+        {asking ? 'Asking…' : 'Ask'}
+      </button>
+    </form>
+    {#if answer}
+      <p class="stage-answer">{answer}</p>
     {/if}
   </div>
 {/if}
@@ -150,6 +206,71 @@
     box-shadow: 0 0 12px var(--accent-b-dim);
   }
 
+  .stage-btn {
+    appearance: none;
+    cursor: pointer;
+    display: block;
+    margin-top: 10px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--accent-b);
+    background: var(--accent-b-bg);
+    border: 1px solid var(--accent-b);
+    border-radius: 8px;
+    padding: 6px 12px;
+    transition: box-shadow 0.15s ease;
+  }
+  .stage-btn:hover {
+    box-shadow: 0 0 12px var(--accent-b-dim);
+  }
+  .stage-ask {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .stage-ask-input {
+    flex: 1;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+  }
+  .stage-ask-input::placeholder {
+    color: var(--text-dim);
+  }
+  .stage-ask-btn {
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    transition: border-color 0.15s ease;
+  }
+  .stage-ask-btn:hover:not(:disabled) {
+    border-color: var(--accent-b-dim);
+  }
+  .stage-ask-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .stage-answer {
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-dim);
+    border-top: 1px solid var(--panel-border);
+    padding-top: 8px;
+    white-space: pre-line;
+  }
+
   /* While the demo window is docked on the right, drop the caption to the bottom
      of the free space on the left (under the shifted cube) so it isn't covered. */
   .stage.demo-open {
@@ -172,6 +293,14 @@
       transform: translateX(-50%);
       width: min(92vw, 440px);
       max-height: 30vh;
+    }
+    /* Clear the open touch keypad (~210px tall, anchored just above the
+       quick actions). Declared before .demo-open so that placement wins. */
+    .stage.raised {
+      bottom: calc(300px + env(safe-area-inset-bottom));
+      /* There's more headroom above the keypad than at the screen edge — let
+         the caption grow upward so step text, button, and ask input all fit. */
+      max-height: 38vh;
     }
     /* Mobile demo is a bottom sheet, so tuck the caption top-right — below the
        top-left Guide toggle and above the sheet. */

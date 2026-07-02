@@ -1,7 +1,9 @@
 <footer class="footer glass-panel">
   <span>© 2026 Qwen Rubik Instructor</span>
   <nav>
+    <a href="/play">Play</a>
     <a href="https://github.com/sanggusti/qwen-rubik-instructor" target="_blank" rel="noreferrer">GitHub</a>
+    <a href="https://qwencloud-hackathon.devpost.com/" target="_blank" rel="noreferrer">Hackathon</a>
     <a href="https://github.com/sanggusti/qwen-rubik-instructor/blob/main/LICENSE" target="_blank" rel="noreferrer">
       MIT License
     </a>

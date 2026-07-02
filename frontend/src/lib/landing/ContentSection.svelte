@@ -1,22 +1,19 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import SpinningCubeScene from './SpinningCubeScene.svelte';
 
   let {
     flip = false,
-    cubeSpeed = 0.18,
     children
   }: {
     flip?: boolean;
-    cubeSpeed?: number;
     children: Snippet;
   } = $props();
 </script>
 
+<!-- The cube column is an empty spacer: the persistent LandingScene cube
+     (fixed canvas behind the content) travels into this gap. -->
 <section class="content-section" class:flip>
-  <div class="cube-col">
-    <SpinningCubeScene speed={cubeSpeed} />
-  </div>
+  <div class="cube-col" aria-hidden="true"></div>
   <div class="text-col glass-panel">
     {@render children()}
   </div>

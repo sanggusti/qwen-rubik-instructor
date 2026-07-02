@@ -40,7 +40,18 @@
       "Bash(kill 96820)",
       "Bash(kill 5196)",
       "Bash(rm -f /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor/phase5-*.png)",
-      "Bash(git -C /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor status --porcelain frontend-sveltekit docs/plan/revampsvelte.md)"
+      "Bash(git -C /Users/suryaagung/go/src/github.com/sanggusti/qwen-rubik-instructor status --porcelain frontend-sveltekit docs/plan/revampsvelte.md)",
+      "mcp__svelte__list-sections",
+      "Bash(git remote *)",
+      "Bash(ls -la /Users/suryaagung/Library/Caches/ms-playwright/ 2>&1; echo \"---\"; npx playwright install chrome --with-deps 2>&1 | tail -40)",
+      "Read(//Users/suryaagung/Library/Caches/ms-playwright/**)",
+      "Bash(find /Users/suryaagung/Library/Caches/ms-playwright-mcp -maxdepth 3 2>&1)",
+      "Read(//Users/suryaagung/Library/Caches/ms-playwright-mcp/**)",
+      "Bash(npx @playwright/mcp --version)",
+      "Bash(npm view *)",
+      "Read(//Users/suryaagung/.npm/_npx/**)",
+      "Bash(node cli.js install chromium)",
+      "Bash(rm -f mobile-hero.png mobile-headline.png mobile-footer.png mobile-hero2.png mobile-hero3.png mobile-hero4.png tablet-hero.png tablet-hero2.png)"
     ],
     "additionalDirectories": [
       "/private/tmp",

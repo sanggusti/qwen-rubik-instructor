@@ -15,6 +15,12 @@
   --accent-b-dim: rgba(0, 240, 255, 0.35);
   --accent-b-bg: rgba(0, 240, 255, 0.12);
 
+  /* arcade yellow — landing page Play Me! button only */
+  --accent-y: #ffe066;
+  --accent-y-2: #ff9f1c;
+  --accent-y-dim: rgba(255, 224, 102, 0.45);
+  --accent-y-bg: rgba(255, 224, 102, 0.12);
+
   --panel-bg: rgba(18, 6, 32, 0.78);
   --panel-border: rgba(255, 43, 214, 0.28);
 

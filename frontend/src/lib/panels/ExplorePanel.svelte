@@ -12,7 +12,8 @@
   let generating = $state(false);
   let generateStatus = $state('');
 
-  let BASE_URL = PUBLIC_BACKEND_URL;
+  let BASE_URL = PUBLIC_BACKEND_URL ? PUBLIC_BACKEND_URL 
+    : 'http://localhost:8000'; // Fallback for local development
 
   const HIGHLIGHTS: { type: CubeletType | null; label: string }[] = [
     { type: 'center', label: 'Centres' },

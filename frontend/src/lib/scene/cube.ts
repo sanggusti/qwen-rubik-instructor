@@ -68,6 +68,18 @@ export class CubeMesh {
   cubiesOnLayer(axis: Axis, slice: number): Cubie[] {
     return this.cubies.filter(c => Math.round(c.coord[axis]) === slice);
   }
+
+  // Free GPU resources for callers that create/destroy cubes repeatedly
+  // (e.g. the landing page canvases). Safe to call more than once.
+  dispose(): void {
+    this.root.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
+    });
+  }
 }
 
 // Build the logical Cubelet for a cubie at lattice coords (x, y, z), each in {-1,0,1}.

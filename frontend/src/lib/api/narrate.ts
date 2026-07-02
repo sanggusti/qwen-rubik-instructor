@@ -9,7 +9,7 @@ import type { Walkthrough, Beat } from '../education/walkthrough';
 import type { Lesson, LessonStep } from '../education/lesson_types';
 import type { Level, Method, MemoryDigest } from '../education/profile';
 
-const BASE_URL = PUBLIC_BACKEND_URL;
+const BASE_URL = PUBLIC_BACKEND_URL ? PUBLIC_BACKEND_URL : 'http://localhost:8000';
 
 export interface GenerateOptions {
   topic?: string;

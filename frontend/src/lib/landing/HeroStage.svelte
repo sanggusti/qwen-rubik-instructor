@@ -29,6 +29,12 @@
       <PlayButton label="Play Me!" {onPlay} />
     </div>
 
+    <!-- Scroll cue — pinned to the viewport bottom, fades out with the title -->
+    <div class="scroll-cue" style="opacity: {titleOpacity}" aria-hidden="true">
+      <span>Scroll me</span>
+      <span class="chevron">▼</span>
+    </div>
+
     <!-- Split-view overlay — cube sits left (via Three.js), text appears right -->
     <div
       class="split-overlay"
@@ -185,6 +191,43 @@
     margin-top: 20px;
   }
 
+  .scroll-cue {
+    position: absolute;
+    bottom: 28px;
+    left: 50%;
+    translate: -50% 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+    pointer-events: none;
+    will-change: opacity;
+  }
+
+  .scroll-cue .chevron {
+    color: var(--accent-b);
+    animation: cue-bob 1.6s ease-in-out infinite;
+  }
+
+  @keyframes cue-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translateY(6px);
+      opacity: 1;
+    }
+  }
+
   /* Reduced-motion: skip the animation entirely, show split-view by default */
   @media (prefers-reduced-motion: reduce) {
     .hero-stage {
@@ -197,6 +240,9 @@
     .split-overlay {
       opacity: 1 !important;
       pointer-events: auto !important;
+    }
+    .scroll-cue {
+      display: none;
     }
   }
 

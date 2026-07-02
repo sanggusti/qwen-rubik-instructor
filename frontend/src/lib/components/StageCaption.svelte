@@ -6,6 +6,11 @@
   import { cubeStore } from '../stores/cube.svelte';
   import { askQwen } from '../api/narrate';
 
+  // On touch devices the open keypad occupies the caption's mobile spot at the
+  // bottom of the screen; `raised` lifts the caption above it so the learner
+  // can read the step and tap moves at the same time.
+  let { raised = false }: { raised?: boolean } = $props();
+
   type Owner = 'lesson' | 'practice' | 'walkthrough';
 
   // Only one experience owns the caption at a time (closeOthers in +page.svelte
@@ -103,7 +108,7 @@
 </script>
 
 {#if active}
-  <div class="stage is-open" class:demo-open={demoStore.open}>
+  <div class="stage is-open" class:demo-open={demoStore.open} class:raised>
     <button class="stage-close" type="button" aria-label="End" onclick={close}>×</button>
     <div class="stage-title">{active.title}</div>
     <p class="stage-body">{displayedBody}</p>
@@ -288,6 +293,14 @@
       transform: translateX(-50%);
       width: min(92vw, 440px);
       max-height: 30vh;
+    }
+    /* Clear the open touch keypad (~210px tall, anchored just above the
+       quick actions). Declared before .demo-open so that placement wins. */
+    .stage.raised {
+      bottom: calc(300px + env(safe-area-inset-bottom));
+      /* There's more headroom above the keypad than at the screen edge — let
+         the caption grow upward so step text, button, and ask input all fit. */
+      max-height: 38vh;
     }
     /* Mobile demo is a bottom sheet, so tuck the caption top-right — below the
        top-left Guide toggle and above the sheet. */

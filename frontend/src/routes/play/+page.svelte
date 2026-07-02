@@ -27,13 +27,18 @@
   // Hidden by default on touch devices; HudBar's "Keypad" button reveals it.
   let keypadOpen = $state(false);
 
+  // Keyboard shortcuts mean nothing on a touch device — point at the keypad.
+  const isCoarsePointer =
+    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
   // First-visit controls hint: nothing else on this screen says how to turn
   // the cube. Gone after the first completed move or once a lesson/drill/
-  // walkthrough owns the stage.
+  // walkthrough owns the stage (or the keypad covers it).
   let hintDismissed = $state(false);
   $effect(() => cubeStore.onMove(() => (hintDismissed = true)));
   const hintVisible = $derived(
     !hintDismissed &&
+      !keypadOpen &&
       lessonStore.snapshot.lesson === null &&
       practiceStore.snapshot.drill === null &&
       walkthroughStore.snapshot.walkthrough === null
@@ -45,13 +50,17 @@
 </CubeCanvas>
 
 <TouchMovePad open={keypadOpen} />
-<StageCaption />
+<StageCaption raised={keypadOpen} />
 <DemoCubeWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />
 
 {#if hintVisible}
   <div class="controls-hint">
-    Drag a face to turn it · keys <b>R L U D F B</b>, hold <b>Shift</b> to reverse · <b>Space</b> scramble · <b>Enter</b> reset · open <b>Guide</b> for lessons
+    {#if isCoarsePointer}
+      Drag a face to turn it · <b>Keypad</b> for precise moves · open <b>Guide</b> for lessons
+    {:else}
+      Drag a face to turn it · keys <b>R L U D F B</b>, hold <b>Shift</b> to reverse · <b>Space</b> scramble · <b>Enter</b> reset · open <b>Guide</b> for lessons
+    {/if}
   </div>
 {/if}
 

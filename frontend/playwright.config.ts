@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 // E2E suite for the learner journey. The backend runs in fallback mode: a
 // dummy DASHSCOPE_API_KEY (must be non-empty — an empty key crashes OpenAI
@@ -24,6 +24,18 @@ export default defineConfig({
 		// Headless chromium needs SwiftShader for the WebGL cube canvas.
 		launchOptions: { args: ['--enable-unsafe-swiftshader'] }
 	},
+	projects: [
+		{ name: 'desktop', testIgnore: /mobile\.spec\.ts/ },
+		// Real phone emulation (touch, coarse pointer, mobile UA) — a plain
+		// viewport resize never shows the touch keypad. Chromium, not the
+		// device's default WebKit: only chromium is installed and the
+		// SwiftShader flag above is chromium-specific.
+		{
+			name: 'mobile',
+			use: { ...devices['iPhone 13'], browserName: 'chromium' },
+			testMatch: /mobile\.spec\.ts/
+		}
+	],
 	webServer: [
 		{
 			command: '.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000',

@@ -11,16 +11,19 @@ import {
   type MemoryDigest,
   type UserProfile
 } from '../education/profile';
+import { syncProfile } from '../api/memory';
 
 class ProfileStore {
   profile: UserProfile = $state(loadProfile());
 
   setLevel(level: Level): void {
     this.profile = setLevel(level);
+    void syncProfile(this.profile);
   }
 
   appendHistory(entry: HistoryEntry): void {
     this.profile = appendHistory(entry);
+    void syncProfile(this.profile);
   }
 
   memoryDigest(): MemoryDigest {

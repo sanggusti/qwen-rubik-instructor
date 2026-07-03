@@ -20,7 +20,8 @@ walkthroughs — all on a live cube you can grab and play with at any time.
   (persisted in the browser). A "Lesson from my cube (Qwen)" button generates
   a lesson tailored to your cube's current state.
 - **Run practice drills** — repeatable pattern drills with live evaluation,
-  scoring, and feedback.
+  scoring, and feedback. Timed solves are ranked on a shared leaderboard when
+  the backend runs with persistence (see below).
 - **Explore walkthroughs** — narrated, animated step-throughs that highlight
   pieces and pace the animation so you can follow what's happening. A "Solve
   my cube (Qwen)" button streams a narrated solve plan for your current cube.
@@ -61,6 +62,15 @@ The backend narrates moves with Qwen via DashScope, so it needs a
 
 The default model `qwen-plus` narrates fast (~5s per frame). For deeper but
 much slower narration (~33s per frame), set `QWEN_MODEL=qwen3.7-plus`.
+
+Optionally, set `TURSO_DATABASE_URL` (a local file path like `data/rubik.db`,
+or a Turso cloud `libsql://…` URL plus `TURSO_AUTH_TOKEN`) and the backend
+persists learner memory — profile, learning history, skill mastery, and timed
+solve attempts for the practice leaderboard — so Qwen remembers a returning
+learner across sessions and devices. Without it the backend is stateless and
+progress lives in the browser only. Note: learner ids are anonymous,
+client-generated UUIDs with no auth — leaderboard times are spoofable, an
+accepted limitation of the hackathon demo.
 
 Open the dev server URL printed in the terminal (usually `http://localhost:5173`).
 You can drive the cube and take the hand-authored lessons without the backend;

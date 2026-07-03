@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Dict, Iterator, List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -17,6 +18,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from config import settings
+from db import database, routes as db_routes, service
 from narrative import planner
 from narrative.llm_narrator import answer_question, narrate_plan
 from narrative.merge import beat_from, step_from
@@ -28,7 +30,15 @@ from pipeline.solver import solve
 # aggregate) on stdout; uvicorn leaves the root logger unconfigured at INFO.
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Qwen Rubik Instructor")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # No-op when TURSO_DATABASE_URL is unset — the backend stays stateless.
+    database.init()
+    yield
+
+
+app = FastAPI(title="Qwen Rubik Instructor", lifespan=lifespan)
+app.include_router(db_routes.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,6 +76,9 @@ class NarrateRequest(BaseModel):
     level: Optional[Literal["newbie", "intermediate", "advanced"]] = None
     method: Optional[Literal["lbl", "cfop"]] = None
     memory: Optional[MemoryDigest] = None
+    # Anonymous learner id (the client profile's sessionId); lets the backend
+    # fall back to persisted memory when no client digest is sent.
+    userId: Optional[str] = None
 
 
 def _resolve_method(req: "NarrateRequest") -> str:
@@ -134,9 +147,17 @@ def _stream(plan: VisualPlan, level: str, memory: Optional[dict]) -> Iterator[st
     yield _sse({"type": "done"})
 
 
+def _memory_dict(req) -> Optional[dict]:
+    # Precedence: a client-sent digest always wins (the client is authoritative
+    # and freshest); persisted memory is the fallback when only a userId comes.
+    if req.memory is not None:
+        return req.memory.model_dump()
+    return service.load_digest(req.userId) if req.userId else None
+
+
 def _stream_response(plan: VisualPlan, req: NarrateRequest) -> StreamingResponse:
     level = req.level or "newbie"
-    memory = req.memory.model_dump() if req.memory else None
+    memory = _memory_dict(req)
     return StreamingResponse(
         _stream(plan, level, memory),
         media_type="text/event-stream",
@@ -164,6 +185,7 @@ class AskRequest(BaseModel):
     state: Optional[Dict[str, List[str]]] = None
     level: Optional[Literal["newbie", "intermediate", "advanced"]] = None
     memory: Optional[MemoryDigest] = None
+    userId: Optional[str] = None
 
 
 class SolveRequest(BaseModel):
@@ -193,7 +215,7 @@ def ask(req: AskRequest) -> dict:
         stage=req.stage or "",
         moves=req.moves or [],
         level=req.level or "newbie",
-        memory=req.memory.model_dump() if req.memory else None,
+        memory=_memory_dict(req),
         state=req.state,
     )
     return {"text": text, "fallback": used_fallback}

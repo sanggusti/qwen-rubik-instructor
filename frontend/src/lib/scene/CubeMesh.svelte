@@ -7,7 +7,7 @@
   import { attachKeyboard } from './keyboard';
   import { LayerHighlight } from './layer-highlight';
   import { CubeView } from './cube-view';
-  import { DirectionArrow, moveToFaceDirection } from './direction-arrow';
+  import { DirectionArrow } from './direction-arrow';
   import { cubeStore } from '../stores/cube.svelte';
   import { cubeViewStore } from '../stores/cube-view.svelte';
   import { demoStore } from '../stores/demo.svelte';
@@ -15,7 +15,6 @@
   import { practiceStore } from '../stores/practice.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
   import SCENE_CONFIG from '../config/scene-config';
-  import type { FaceKey } from '../cube/state';
 
   const cube = new Cube();
   const animator = new MoveAnimator(cube, cube.root);
@@ -38,18 +37,6 @@
 
   const { camera, canvas } = useThrelte();
 
-  // The current hint move (from lesson/walkthrough expected moves). Stored as a
-  // plain variable (not reactive state) because onDragEnd reads it by closure.
-  let hintMove: { face: FaceKey; direction: 1 | -1 } | null = null;
-
-  function applyHint(): void {
-    if (hintMove) {
-      directionArrow.show(hintMove.face, hintMove.direction, 0.45);
-    } else {
-      directionArrow.fadeOut();
-    }
-  }
-
   onMount(() => {
     cubeStore.bind({
       enqueue: (move) => animator.enqueue(move),
@@ -67,8 +54,6 @@
 
     const detachDrag = attachDragControls(cube, animator, camera.current, canvas, {
       onPreviewLayer: (cubies) => layerHighlight.set(cubies),
-      onDragDirection: (face, direction) => directionArrow.show(face, direction, 1.0),
-      onDragEnd: () => applyHint(),
     });
     const detachKeyboard = attachKeyboard(animator, { onReset: () => cubeStore.reset() });
     return () => {
@@ -81,26 +66,6 @@
     };
   });
 
-  // Show a low-opacity hint arrow for the next expected move in the active
-  // lesson step or walkthrough beat. Drag gestures override this at full opacity;
-  // onDragEnd restores the hint via applyHint().
-  $effect(() => {
-    const snap = lessonStore.snapshot;
-    const lsnMove = snap.lesson ? (snap.step.expectedMoves?.[0] ?? null) : null;
-    if (lsnMove) {
-      const parsed = moveToFaceDirection(lsnMove);
-      hintMove = parsed;
-      if (parsed) { directionArrow.show(parsed.face, parsed.direction, 0.45); return; }
-    }
-    const wSnap = walkthroughStore.snapshot;
-    if (wSnap.currentMove) {
-      const parsed = moveToFaceDirection(wSnap.currentMove);
-      hintMove = parsed;
-      if (parsed) { directionArrow.show(parsed.face, parsed.direction, 0.45); return; }
-    }
-    hintMove = null;
-    directionArrow.fadeOut();
-  });
 
   // Y shift (world units) while the Guide modal is open on any device.
   const MODAL_CUBE_SHIFT_Y = 1.2;

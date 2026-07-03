@@ -2,6 +2,15 @@
   import { practiceStore } from '../stores/practice.svelte';
   import { selectDrills } from '../education/drill_generator';
   import type { DrillCategory, DrillDifficulty } from '../education/practice_types';
+  import { loadProfile } from '../education/profile';
+  import {
+    fetchLeaderboard,
+    getHandle,
+    recordAttempt,
+    setHandle,
+    syncProfile,
+    type LeaderboardEntry
+  } from '../api/memory';
 
   let { onSelect }: { onSelect?: () => void } = $props();
 
@@ -59,10 +68,39 @@
     return `${(ms / 1000).toFixed(1)}s`;
   }
 
-  // Persist a new personal best as soon as a drill completes.
+  let board = $state<LeaderboardEntry[] | null>(null);
+  let handle = $state(getHandle() ?? '');
+  // The completion effect re-runs on any snapshot change; only report each
+  // finished attempt (same drill + same start time) to the backend once.
+  let lastReported = '';
+
+  function saveHandle(): void {
+    setHandle(handle);
+    void syncProfile(loadProfile());
+  }
+
+  // Persist a new personal best as soon as a drill completes, and mirror the
+  // attempt + profile to the backend (fire-and-forget; silent when offline).
   $effect(() => {
     const s = snapshot;
-    if (s.drill !== null && s.completed && s.solveMs != null) recordBest(s.drill.id, s.solveMs);
+    if (s.drill !== null && s.completed && s.solveMs != null) {
+      recordBest(s.drill.id, s.solveMs);
+      const key = `${s.drill.id}:${s.startedAt ?? 0}`;
+      if (key !== lastReported) {
+        lastReported = key;
+        const drillId = s.drill.id;
+        void recordAttempt({
+          userId: loadProfile().sessionId,
+          drillId,
+          durationMs: s.solveMs
+        }).then(() => fetchLeaderboard(drillId)).then((entries) => {
+          board = entries;
+        });
+        void syncProfile(loadProfile());
+      }
+    } else {
+      board = null;
+    }
   });
 
   const timerText = $derived.by(() => {
@@ -135,6 +173,20 @@
       {/if}
       <button type="button" class="prc-btn" onclick={() => practiceStore.resetDrill()}>Reset drill</button>
     </div>
+    {#if completed && board !== null && board.length > 0}
+      <div class="prc-board">
+        <div class="prc-board-title">Fastest solves</div>
+        <ol class="prc-board-list">
+          {#each board.slice(0, 5) as entry (entry.userId)}
+            <li><span class="prc-board-handle">{entry.handle}</span> · {fmtTime(entry.bestMs)}</li>
+          {/each}
+        </ol>
+        <label class="prc-handle">
+          Name on leaderboard
+          <input type="text" maxlength="24" bind:value={handle} onchange={saveHandle} placeholder="anonymous" />
+        </label>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -248,5 +300,44 @@
   .prc-btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+  .prc-board {
+    margin-top: 10px;
+    border-top: 1px solid var(--panel-border);
+    padding-top: 8px;
+  }
+  .prc-board-title {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-a);
+    margin-bottom: 6px;
+  }
+  .prc-board-list {
+    margin: 0 0 8px;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .prc-board-handle {
+    color: var(--text);
+  }
+  .prc-handle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .prc-handle input {
+    flex: 1;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 5px 8px;
   }
 </style>

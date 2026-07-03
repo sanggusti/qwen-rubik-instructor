@@ -4,6 +4,7 @@
   import { walkthroughStore } from '../stores/walkthrough.svelte';
   import { demoStore } from '../stores/demo.svelte';
   import { cubeStore } from '../stores/cube.svelte';
+  import { profileStore } from '../stores/profile.svelte';
   import { askQwen } from '../api/narrate';
 
   let { raised = false }: { raised?: boolean } = $props();
@@ -43,7 +44,12 @@
     if (!q || asking) return;
     asking = true;
     try {
-      answer = await askQwen({ question: q, stage: active?.title, state: cubeStore.getState() });
+      answer = await askQwen({
+        question: q,
+        stage: active?.title,
+        state: cubeStore.getState(),
+        userId: profileStore.profile.sessionId
+      });
       question = '';
     } catch (err) {
       answer = `Couldn't ask: ${(err as Error).message}`;

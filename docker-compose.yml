@@ -1,21 +1,53 @@
+configs:
+  caddyfile:
+    content: |
+      {$DOMAIN} {
+          reverse_proxy frontend:80
+      }
+
+      api$DOMAIN {
+          reverse_proxy backend:8000
+      }
+
 services:
+  caddy:
+    image: caddy:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    environment:
+      DOMAIN: ${DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+
   backend:
     build:
       context: ./backend
-    ports:
-      - "8000:8000"
+    image: docker.io/suryatresna/qwen-rubik-instructor-backend:v1.0.0
     environment:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
-      CORS_ORIGINS: '["http://localhost:8080"]'
+      CORS_ORIGINS: '["https://${DOMAIN}"]'
+      # Optional Turso persistence (empty = stateless backend, localStorage only).
+      TURSO_DATABASE_URL: ${TURSO_DATABASE_URL:-}
+      TURSO_AUTH_TOKEN: ${TURSO_AUTH_TOKEN:-}
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       args:
-        PUBLIC_BACKEND_URL: http://localhost:8000
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
+        PUBLIC_BACKEND_URL: https://api${DOMAIN}
+    image: docker.io/suryatresna/qwen-rubik-instructor-frontend:v1.0.0
     restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

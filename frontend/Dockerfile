@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-ARG PUBLIC_BACKEND_URL=http://localhost:8000
+ARG PUBLIC_BACKEND_URL
 ENV PUBLIC_BACKEND_URL=$PUBLIC_BACKEND_URL
 RUN npm run build
 

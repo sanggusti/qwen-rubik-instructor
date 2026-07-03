@@ -377,8 +377,7 @@
     white-space: pre-line;
   }
 
-  /* While the demo window is docked on the right, drop the caption to the bottom
-     of the free space on the left (under the shifted cube) so it isn't covered. */
+  /* Desktop: demo window docked on the right — avoid overlap */
   .stage.demo-open {
     top: auto;
     bottom: 20px;
@@ -392,25 +391,27 @@
   }
 
   @media (max-width: 760px) {
+    /* Full-width bottom sheet on mobile */
     .stage {
       top: auto;
-      bottom: calc(64px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(92vw, 440px);
-      max-height: 30vh;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transform: none;
+      width: auto;
+      max-height: 40vh;
+      border-radius: 16px 16px 0 0;
+      border-bottom: none;
     }
     .stage.lesson-owner {
-      max-height: 46vh;
+      max-height: 50vh;
     }
-    /* Clear the open touch keypad (~210px tall, anchored just above the
-       quick actions). Declared before .demo-open so that placement wins. */
+    /* Sit above the full-width keypad bar (~162px) */
     .stage.raised {
-      bottom: calc(300px + env(safe-area-inset-bottom));
+      bottom: calc(162px + env(safe-area-inset-bottom));
       max-height: 38vh;
     }
-    /* Mobile demo is a bottom sheet, so tuck the caption top-right — below the
-       top-left Guide toggle and above the sheet. */
+    /* Mobile demo is a bottom sheet — tuck caption top-right */
     .stage.demo-open {
       top: calc(env(safe-area-inset-top) + 80px);
       bottom: auto;
@@ -418,6 +419,8 @@
       right: 10px;
       transform: none;
       width: min(72vw, 320px);
+      border-radius: 16px;
+      border-bottom: revert;
       max-width: none;
       margin: 0;
       max-height: 17vh;

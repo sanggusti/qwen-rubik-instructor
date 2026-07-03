@@ -65,10 +65,12 @@
       <span class="icon" aria-hidden="true">📖</span>
       <span class="label">Guide</span>
     </button>
-    <div class="quick-actions">
-      <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
-      <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>
-    </div>
+    {#if !keypadOpen}
+      <div class="quick-actions">
+        <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
+        <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>
+      </div>
+    {/if}
   </div>
 
   {#if dockOpen}
@@ -82,17 +84,17 @@
   {/if}
 </div>
 
-<button
-  type="button"
-  class="keypad-fab"
-  class:is-active={keypadOpen}
-  aria-pressed={keypadOpen}
-  aria-label="Toggle move keypad"
-  onclick={onToggleKeypad}
->
-  <span class="icon" aria-hidden="true">⌨️</span>
-  <span class="label">{keypadOpen ? 'Close' : 'Keypad'}</span>
-</button>
+{#if !keypadOpen}
+  <button
+    type="button"
+    class="keypad-fab"
+    aria-label="Open move keypad"
+    onclick={onToggleKeypad}
+  >
+    <span class="icon" aria-hidden="true">⌨️</span>
+    <span class="label">Keypad</span>
+  </button>
+{/if}
 
 {#if activeId}
   <div
@@ -148,6 +150,25 @@
     flex-direction: column;
     gap: 6px;
   }
+  .dock-action {
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--accent-b);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .dock-action:hover {
+    border-color: var(--accent-b-dim);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-b-dim);
+  }
   .guide-toggle {
     appearance: none;
     cursor: pointer;
@@ -195,28 +216,9 @@
     border: 1px solid var(--panel-border);
     backdrop-filter: blur(14px) saturate(140%);
   }
-  .dock-action {
-    appearance: none;
-    cursor: pointer;
-    font-family: inherit;
-    color: var(--accent-b);
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    backdrop-filter: blur(14px) saturate(140%);
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  }
-  .dock-action:hover {
-    border-color: var(--accent-b-dim);
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-b-dim);
-  }
 
   .keypad-fab {
-    display: none; /* shown only on touch/mobile via media queries below */
+    display: none;
     position: fixed;
     right: 16px;
     bottom: max(16px, env(safe-area-inset-bottom));
@@ -235,11 +237,6 @@
     backdrop-filter: blur(14px) saturate(140%);
     transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
   }
-  @media (pointer: coarse), (max-width: 760px) {
-    .keypad-fab {
-      display: flex;
-    }
-  }
   .keypad-fab .icon {
     font-size: 20px;
     line-height: 1;
@@ -249,13 +246,9 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
   }
-  .keypad-fab:hover,
-  .keypad-fab.is-active {
+  .keypad-fab:hover {
     border-color: var(--accent-b-dim);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-b-dim);
-  }
-  .keypad-fab.is-active {
-    background: var(--accent-b-bg);
   }
 
   .modal-backdrop {
@@ -293,6 +286,12 @@
   .modal-close:hover {
     border-color: var(--accent-b-dim);
     box-shadow: 0 0 14px var(--accent-b-dim);
+  }
+
+  @media (pointer: coarse), (max-width: 760px) {
+    .keypad-fab {
+      display: flex;
+    }
   }
 
   @media (max-width: 760px) {

@@ -5,7 +5,7 @@
   import type { Snippet } from 'svelte';
   import SCENE_CONFIG from '../config/scene-config';
 
-  let { children }: { children?: Snippet } = $props();
+  let { children, shiftUp = false }: { children?: Snippet; shiftUp?: boolean } = $props();
 
   // Coarse-pointer or small-viewport devices get a lower pixel-ratio ceiling
   // and no antialiasing, for performance — wires up the previously-unused
@@ -33,7 +33,7 @@
 
 <svelte:window bind:innerWidth bind:innerHeight />
 
-<div class="stage">
+<div class="stage" class:shift-up={shiftUp}>
   <Canvas {createRenderer} dpr={[1, maxPixelRatio]}>
     <T.PerspectiveCamera
       makeDefault
@@ -57,5 +57,15 @@
     /* Without this, touch drags get cancelled mid-gesture as a page pan (pointercancel
        instead of pointerup), so attachDragControls never sees the drag complete. */
     touch-action: none;
+    transition: height 0.25s ease;
+  }
+
+  /* On mobile, shrink the canvas to the top portion so the stage panel and
+     keypad at the bottom don't overlap the 3D scene. Pointer events remain
+     accurate because the canvas itself is smaller — no CSS transform tricks. */
+  @media (max-width: 760px) {
+    .stage.shift-up {
+      height: 52vh;
+    }
   }
 </style>

@@ -221,3 +221,5 @@ node_modules/
 .vite/
 
 .playwright-mcp/
+# Local libSQL database files
+backend/data/

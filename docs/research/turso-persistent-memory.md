@@ -1,8 +1,10 @@
 # Turso (libSQL) as the persistence layer for learner memory
 
-**Status:** research / not yet implemented. Captures the case for Turso and a
-concrete design we can enable later without breaking the current offline-first
-frontend path. Tracks GitHub issue *"Use Turso (libSQL) for persistent learner
+**Status:** core implemented on 2026-07-03 — see
+[Part 13: Memory that outlives the browser](../13-memory-that-outlives-the-browser-turso-with-a-kill-switch.md)
+for what shipped (schema, optional config, snapshot sync, digest fallback,
+leaderboard). The *semantic recall* layer sketched in §5 remains future work.
+Originally tracked GitHub issue *"Use Turso (libSQL) for persistent learner
 memory."*
 
 **Context in this repo:**

@@ -35,6 +35,9 @@ services:
     environment:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       CORS_ORIGINS: '["https://${DOMAIN}"]'
+      # Optional Turso persistence (empty = stateless backend, localStorage only).
+      TURSO_DATABASE_URL: ${TURSO_DATABASE_URL:-}
+      TURSO_AUTH_TOKEN: ${TURSO_AUTH_TOKEN:-}
     restart: unless-stopped
 
   frontend:

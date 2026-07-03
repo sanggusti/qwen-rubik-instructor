@@ -63,6 +63,7 @@
         level: profileStore.profile.level,
         method: profileStore.profile.method,
         memory: profileStore.memoryDigest(),
+        userId: profileStore.profile.sessionId,
         onProgress: (done, total) => {
           generateStatus = `Generating narration… beat ${done} of ${total}`;
         }

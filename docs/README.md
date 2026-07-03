@@ -19,10 +19,12 @@ player to teach on that cube and leave the learner's alone (Part 11). On
 Playwright E2E suite that runs the real backend with the LLM pinned to its
 deterministic fallback, a human QA pass on top of it, and a phone-emulation
 pass — together surfacing (and fixing) bugs no unit test could see (Part 12).
-Every phase shipped with tests; the current state is backend 710 tests,
-frontend 238 unit tests plus 25 E2E specs (desktop + mobile projects), all
-green, plus live model calls and in-browser checks confirming the end-to-end
-loop.
+On 2026-07-03 learner memory grew a server-side home: an optional Turso/libSQL
+mirror behind a single env var, with the browser staying authoritative and a
+timed-solve leaderboard on top (Part 13). Every phase shipped with tests; the
+current state is backend 739 tests, frontend 238 unit tests plus 25 E2E specs
+(desktop + mobile projects), all green, plus live model calls and in-browser
+checks confirming the end-to-end loop.
 
 ## The posts
 
@@ -106,25 +108,35 @@ loop.
     teardown, a backdrop eating visible clicks — then a human pass and real
     phone emulation each found what the green suite couldn't.
 
+13. **[Memory that outlives the browser: a Turso mirror with a kill switch](./13-memory-that-outlives-the-browser-turso-with-a-kill-switch.md)**
+    The client-side memory was a guarantee worth keeping, so the database is a
+    *mirror*: whole-profile snapshot sync keyed by an identity that was already
+    there, an empty env var as the kill switch (the same emergent-fallback
+    pattern the LLM uses), a client-digest-always-wins precedence rule that left
+    the narrator untouched, and a timed-solve leaderboard. Plus two finds: an
+    upsert that `COALESCE(excluded.x, x)` quietly broke, and a stage stat the
+    mirror revealed had never been written at all.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-13. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
+14. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
     service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
     services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-14. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
-    client-side memory lives.
-15. **The 3-minute demo** — the cross-session memory loop, end to end.
+15. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
+    learner memory lives on each side of the mirror.
+16. **The 3-minute demo** — the cross-session memory loop, end to end.
 
-## Research (design notes, not yet code)
+## Research (design notes)
 
 - **[Turso (libSQL) as the persistent-memory layer](./research/turso-persistent-memory.md)**
-  The case for Turso and a low-blast-radius design to persist and *semantically
-  recall* learner memory server-side — schema, integration, and the recall
-  features that would make the MemoryAgent track outstanding — while keeping the
-  browser-local path working as a fallback.
+  The design note that became Part 13: the case for Turso and a low-blast-radius
+  design to persist learner memory server-side while keeping the browser-local
+  path working as a fallback. The core (schema, optional config, digest
+  fallback) shipped; the *semantic recall* layer it sketches remains future
+  work.
 
 ## The throughline
 

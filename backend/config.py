@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     qwen_timeout_s: float = 20.0
     # How many frames to narrate concurrently (frames are independent LLM calls).
     narration_workers: int = 6
+    # Turso/libSQL persistence. Empty URL disables persistence entirely (the
+    # backend stays stateless, mirroring the empty-DASHSCOPE_API_KEY fallback).
+    # Local file path for dev (e.g. backend/data/rubik.db) or a libsql:// URL.
+    turso_database_url: str = ""
+    turso_auth_token: str = ""
 
 
 settings = Settings()

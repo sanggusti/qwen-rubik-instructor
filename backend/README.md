@@ -112,3 +112,44 @@ frontend's `core/state.ts`, pinned by a Node↔Python cross-validation test. The
 solver wraps the `rubik_cube` (pglass) beginner LBL method; its move/facelet
 conventions are mapped to ours empirically (see `pipeline/solver/lbl.py` and
 `tests/test_solver.py`).
+
+## Persistence (Turso/libSQL)
+
+Optional: set `TURSO_DATABASE_URL` (a local file path for dev, or a
+`libsql://…` URL plus `TURSO_AUTH_TOKEN` for Turso cloud) and the backend
+persists learner memory; leave it unset and the backend is exactly as
+stateless as before. Setup for Turso cloud:
+
+```bash
+turso db create rubik
+turso db show rubik --url        # -> TURSO_DATABASE_URL
+turso db tokens create rubik     # -> TURSO_AUTH_TOKEN
+```
+
+Schema (`db/migrations/NNNN_*.sql`, applied idempotently at startup and
+tracked in `schema_migrations`): `users` (anonymous id + handle + level/method),
+`sessions` (learning history events), `stage_stats` (per-stage progress and
+mastery; due-for-review is derived from `mastered + last_at`, never stored),
+`solve_attempts` (every timed drill completion).
+
+Endpoints (all additive; write endpoints answer `persisted: false` with a 200
+when persistence is off, so fire-and-forget clients never error):
+
+- `POST /memory/sync` — client-authoritative profile snapshot, replaces the
+  user's history and stage stats wholesale. Body: `{userId, handle?, level?,
+  method?, history: [...], performance: {...}}`.
+- `GET /memory/{userId}` — `{userId, handle, digest, updatedAt}`; the digest is
+  a server-computed `MemoryDigest` (port of the frontend's `buildMemoryDigest`
+  in `db/service.py::load_digest`). 404 when unknown or persistence is off.
+- `POST /attempts` — `{userId, drillId, durationMs, mistakes?, handle?}`;
+  returns the user's `bestMs` for the drill. 400 for non-positive durations.
+- `GET /leaderboard?drillId=…&limit=10` — best time per user, fastest first.
+
+`POST /narrate/*` and `POST /ask` accept an optional `userId`: a client-sent
+`memory` digest always wins, the persisted digest is the fallback when only a
+`userId` arrives. No auth: user ids are client-generated UUIDs, so any client
+can write any id — a known, accepted hackathon limitation.
+
+Tests point the module at a temp file via `database.init(path)`; the suite's
+`conftest.py` disables persistence by default so a configured repo-root `.env`
+never leaks into tests.

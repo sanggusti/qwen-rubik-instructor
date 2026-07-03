@@ -46,6 +46,25 @@ DASHSCOPE_API_KEY=sk-... .venv/bin/uvicorn main:app --port 8000
 - DashScope is OpenAI-compatible; the client points at the intl base URL in
   `backend/config.py`.
 
+### Optional: persistent learner memory (Turso/libSQL)
+
+With `TURSO_DATABASE_URL` set, the backend mirrors learner profiles, learning
+history, and timed solve attempts into a libSQL database (schema applied
+automatically from `backend/db/migrations/` at startup), serves the practice
+leaderboard, and lets Qwen recall a returning learner from `userId` alone.
+Leave it unset and the backend stays fully stateless — everything still works
+from localStorage.
+
+```bash
+# Local dev: a plain file, zero external services
+TURSO_DATABASE_URL=data/rubik.db .venv/bin/uvicorn main:app --port 8000
+
+# Turso cloud
+turso db create rubik && turso db show rubik --url && turso db tokens create rubik
+TURSO_DATABASE_URL=libsql://<db>-<org>.turso.io TURSO_AUTH_TOKEN=... \
+  .venv/bin/uvicorn main:app --port 8000
+```
+
 ## Tests
 
 ```bash
@@ -84,5 +103,13 @@ npm --prefix frontend exec tsc -- --noEmit
   if you change one, change the other.
 - **HTML `hidden` loses to the panels' CSS `display` rules.** Toggle visibility
   with inline `style.display`, not the `hidden` attribute (see `lessons_panel.ts`).
-- **Learner memory is client-side and stateless on the backend.** The backend
-  receives a compact `MemoryDigest` per request and never persists it.
+- **Learner memory is client-authoritative; the backend mirror is optional.**
+  localStorage (`rubik-profile`) is the source of truth and the app is fully
+  playable offline. When `TURSO_DATABASE_URL` is set the backend persists a
+  mirror (users, sessions, stage stats, solve attempts) and narration falls
+  back to it when a request carries a `userId` but no `memory` digest; a
+  client-sent digest always wins.
+- **`buildMemoryDigest` is ported twice** — `frontend/src/lib/education/profile.ts`
+  (TS) and `backend/db/service.py::load_digest` (Python) share the same decay/
+  forgetting constants and are pinned together by mirrored test cases
+  (`profile.test.ts` / `tests/test_db.py`); if you change one, change the other.

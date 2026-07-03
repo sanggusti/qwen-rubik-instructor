@@ -19,6 +19,8 @@ export interface GenerateOptions {
   method?: Method;
   /** Compact performance summary so Qwen can remember and adapt. */
   memory?: MemoryDigest;
+  /** Anonymous learner id — lets the backend fall back to persisted memory. */
+  userId?: string;
   /** Called as each beat/step arrives, for progress UI. */
   onProgress?: (done: number, total: number) => void;
 }
@@ -29,7 +31,8 @@ function requestBody(opts: GenerateOptions): Record<string, unknown> {
     state: opts.state,
     level: opts.level,
     method: opts.method,
-    memory: opts.memory
+    memory: opts.memory,
+    userId: opts.userId
   };
 }
 
@@ -97,6 +100,7 @@ export interface AskOptions {
   state?: State;
   level?: Level;
   memory?: MemoryDigest;
+  userId?: string;
 }
 
 // Ask Qwen a free-form question about the current step. Non-streaming: the

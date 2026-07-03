@@ -21,13 +21,6 @@
   }: { onOpenExperience: (keep: ExperienceKeep) => void; keypadOpen: boolean; onToggleKeypad: () => void } =
     $props();
 
-  // The Keypad toggle only matters on touch devices — TouchMovePad itself is
-  // gated the same way, so this just keeps the button from showing up where
-  // it'd have nothing to reveal.
-  let isCoarsePointer = $state(
-    typeof window !== 'undefined' ? window.matchMedia('(pointer: coarse)').matches : false
-  );
-
   const TABS: { id: TabId; label: string; keep: ExperienceKeep }[] = [
     { id: 'lessons', label: 'Lessons', keep: 'lesson' },
     { id: 'practice', label: 'Practice', keep: 'practice' },
@@ -72,11 +65,6 @@
     <div class="quick-actions">
       <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
       <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>
-      {#if isCoarsePointer}
-        <button type="button" class="dock-action" class:is-active={keypadOpen} aria-pressed={keypadOpen} onclick={onToggleKeypad}>
-          Keypad
-        </button>
-      {/if}
     </div>
   </div>
 
@@ -90,6 +78,18 @@
     </div>
   {/if}
 </div>
+
+<button
+  type="button"
+  class="keypad-fab"
+  class:is-active={keypadOpen}
+  aria-pressed={keypadOpen}
+  aria-label="Toggle move keypad"
+  onclick={onToggleKeypad}
+>
+  <span class="icon" aria-hidden="true">⌨️</span>
+  <span class="label">{keypadOpen ? 'Close' : 'Keypad'}</span>
+</button>
 
 {#if activeId}
   <div
@@ -130,8 +130,6 @@
     left: 16px;
     top: 50%;
     transform: translateY(-50%);
-    /* Above .modal-backdrop (100): the tab rail stays clickable while a panel
-       is open, so switching tabs takes one click instead of two. */
     z-index: 110;
     display: flex;
     align-items: flex-start;
@@ -209,20 +207,58 @@
     text-transform: uppercase;
     transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
   }
-  .dock-action:hover,
-  .dock-action.is-active {
+  .dock-action:hover {
     border-color: var(--accent-b-dim);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-b-dim);
   }
-  .dock-action.is-active {
+
+  .keypad-fab {
+    display: none; /* shown only on touch/mobile via media queries below */
+    position: fixed;
+    right: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 110;
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: 14px;
     color: var(--accent-b);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(14px) saturate(140%);
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  @media (pointer: coarse), (max-width: 760px) {
+    .keypad-fab {
+      display: flex;
+    }
+  }
+  .keypad-fab .icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .keypad-fab .label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .keypad-fab:hover,
+  .keypad-fab.is-active {
+    border-color: var(--accent-b-dim);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-b-dim);
+  }
+  .keypad-fab.is-active {
     background: var(--accent-b-bg);
   }
 
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 100;
+    z-index: 200;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -282,6 +318,16 @@
     }
     .dock-tabs {
       min-width: 96px;
+    }
+    .keypad-fab {
+      right: 10px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      padding: 12px 14px;
+      min-height: 56px;
+      min-width: 56px;
+    }
+    .keypad-fab .icon {
+      font-size: 22px;
     }
   }
 </style>

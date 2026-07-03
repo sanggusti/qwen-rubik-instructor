@@ -49,7 +49,7 @@
   <CubeMesh />
 </CubeCanvas>
 
-<TouchMovePad open={keypadOpen} />
+<TouchMovePad open={keypadOpen} onClose={() => (keypadOpen = false)} />
 <StageCaption raised={keypadOpen} />
 <DemoCubeWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />

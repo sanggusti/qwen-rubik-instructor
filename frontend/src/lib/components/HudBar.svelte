@@ -7,6 +7,7 @@
   import DebuggerPanel from '../panels/DebuggerPanel.svelte';
   import LevelPanel from '../panels/LevelPanel.svelte';
   import { cubeStore } from '../stores/cube.svelte';
+  import { demoStore } from '../stores/demo.svelte';
 
   type ExperienceKeep = 'lesson' | 'practice' | 'walkthrough' | 'none';
   type TabId = 'lessons' | 'practice' | 'explore' | 'debugger' | 'level';
@@ -31,6 +32,8 @@
 
   let dockOpen = $state(false);
   let activeId = $state<TabId | null>(null);
+
+  $effect(() => { demoStore.modalOpen = activeId !== null; });
 
   function toggleDock(): void {
     dockOpen = !dockOpen;

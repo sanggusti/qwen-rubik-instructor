@@ -33,6 +33,9 @@ const MAIN_CUBE_SHIFT = -2.4;
 
 class DemoStore {
   open = $state(false);
+  // True while the Guide modal (any tab) is open — used to slide the cube up
+  // so it stays visible above the modal backdrop.
+  modalOpen = $state(false);
   source: DemoSource | null = $state(null);
   seedState: State | null = $state(null);
   moves: string[] = $state([]);

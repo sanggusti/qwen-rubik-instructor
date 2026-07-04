@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import CubeCanvas from '$lib/scene/CubeCanvas.svelte';
   import CubeMesh from '$lib/scene/CubeMesh.svelte';
@@ -17,6 +18,13 @@
   import { authStore } from '$lib/auth/store.svelte';
   import { challengeStore, CHALLENGE_SCRAMBLE_LENGTH } from '$lib/stores/challenge.svelte';
   import { startChallenge, submitScore } from '$lib/api/challenge';
+
+  onMount(() => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    const original = meta?.getAttribute('content') ?? '';
+    meta?.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1');
+    return () => meta?.setAttribute('content', original);
+  });
 
   // E2E hook: dev-only, stripped from production builds.
   if (import.meta.env.DEV && typeof window !== 'undefined') {

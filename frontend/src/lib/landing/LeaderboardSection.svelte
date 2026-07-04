@@ -17,6 +17,13 @@
     });
   });
 
+  function entryBadge(entry: ChallengeEntry): string {
+    if (entry.status === 'give_up') return 'Gave Up 😵';
+    if (entry.rank === 1) return '🚀 Winner';
+    if (entry.rank === 2) return '🔥 Second';
+    return '✅ Solved';
+  }
+
   function relativeDate(iso: string): string {
     const then = Date.parse(iso.endsWith('Z') || iso.includes('+') ? iso : `${iso}Z`);
     if (Number.isNaN(then)) return '';
@@ -38,7 +45,7 @@
       <p class="intro">Challenge mode: one 20-move scramble, one clock. Beat them.</p>
       <table>
         <thead>
-          <tr><th>#</th><th>Player</th><th>Best time</th><th>When</th></tr>
+          <tr><th>#</th><th>Player</th><th>Best time</th><th></th><th>When</th></tr>
         </thead>
         <tbody>
           {#each entries as entry (entry.rank)}
@@ -46,11 +53,13 @@
               <td class="rank">{entry.rank}</td>
               <td>{entry.username}</td>
               <td class="time">{formatChallengeTime(entry.bestMs)}</td>
+              <td><span class="status-badge" class:give-up={entry.status === 'give_up'}>{entryBadge(entry)}</span></td>
               <td class="when">{relativeDate(entry.at)}</td>
             </tr>
           {/each}
         </tbody>
       </table>
+      <button class="challenge-btn" onclick={() => goto('/play?challenge=1')}>Challenge Me</button>
     {:else}
       <h2 class="neon-heading section-heading">⚡ FASTEST SOLVERS</h2>
       <p class="empty-msg">You wanna make first move?</p>
@@ -134,6 +143,14 @@
   .when {
     color: var(--text-dim);
     font-size: 11px;
+  }
+  .status-badge {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--accent-a);
+  }
+  .status-badge.give-up {
+    color: var(--text-dim);
   }
 
   .empty-msg {

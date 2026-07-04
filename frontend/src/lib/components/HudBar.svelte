@@ -21,12 +21,14 @@
     onOpenExperience,
     keypadOpen,
     onToggleKeypad,
-    onChallenge
+    onChallenge,
+    onGiveUp
   }: {
     onOpenExperience: (keep: ExperienceKeep) => void;
     keypadOpen: boolean;
     onToggleKeypad: () => void;
     onChallenge: () => void;
+    onGiveUp: () => void;
   } = $props();
 
   const TABS: { id: TabId; label: string; keep: ExperienceKeep }[] = [
@@ -73,7 +75,7 @@
   );
 
   function giveUp(): void {
-    challengeStore.cancel();
+    onGiveUp();
   }
 </script>
 

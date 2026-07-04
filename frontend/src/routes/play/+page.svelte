@@ -16,7 +16,7 @@
   import { cubeStore } from '$lib/stores/cube.svelte';
   import { authStore } from '$lib/auth/store.svelte';
   import { challengeStore, CHALLENGE_SCRAMBLE_LENGTH } from '$lib/stores/challenge.svelte';
-  import { submitScore } from '$lib/api/challenge';
+  import { startChallenge, submitScore } from '$lib/api/challenge';
 
   // E2E hook: dev-only, stripped from production builds.
   if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -63,6 +63,10 @@
   let showConfetti = $state(false);
   let showLeaderboard = $state(false);
   let finalTimeMs = $state(0);
+  let gaveUp = $state(false);
+  // Opaque session key issued by /challenge/start; redeemed by /challenge/score.
+  // Kept null until the server confirms the session was created.
+  let sessionKey = $state<string | null>(null);
 
   function onChallenge(): void {
     if (authStore.member?.hasUsername) {
@@ -97,9 +101,16 @@
   });
 
   // Timer starts once the scramble animation settles.
+  // Request a server-side session key at the same moment so the backend knows
+  // exactly when the clock started — the client never sends a solve time.
   $effect(() => {
     if (challengeStore.status === 'scrambling' && !cubeStore.isBusy) {
       challengeStore.start();
+      if (authStore.token) {
+        startChallenge(authStore.token, CHALLENGE_SCRAMBLE_LENGTH).then((result) => {
+          sessionKey = result?.key ?? null;
+        });
+      }
     }
   });
 
@@ -113,18 +124,37 @@
     return () => cancelAnimationFrame(raf);
   });
 
-  // Solved (by real moves — Reset/Scramble cancel the run instead) → record,
-  // celebrate, then show the board.
+  // Solved (by real moves — Reset/Scramble cancel the run instead) → redeem the
+  // session key so the backend records server-computed time, then celebrate.
   $effect(() => {
     if (challengeStore.status === 'running' && cubeStore.isSolved && !cubeStore.isBusy) {
       challengeStore.finish();
       finalTimeMs = challengeStore.elapsedMs;
-      if (authStore.token) {
-        void submitScore(authStore.token, Math.round(finalTimeMs), CHALLENGE_SCRAMBLE_LENGTH);
-      }
+      const key = sessionKey;
+      sessionKey = null;
       showConfetti = true;
+      if (authStore.token && key) {
+        submitScore(authStore.token, key).then((result) => {
+          // Use server-computed time for the modal if it arrives before confetti ends.
+          if (result?.solveTimeMs) finalTimeMs = result.solveTimeMs;
+        });
+      }
     }
   });
+
+  function onGiveUp(): void {
+    finalTimeMs = challengeStore.elapsedMs;
+    const key = sessionKey;
+    sessionKey = null;
+    challengeStore.cancel();
+    gaveUp = true;
+    showLeaderboard = true;
+    if (authStore.token && key) {
+      submitScore(authStore.token, key, 'give_up').then((result) => {
+        if (result?.solveTimeMs) finalTimeMs = result.solveTimeMs;
+      });
+    }
+  }
 
   function onConfettiDone(): void {
     showConfetti = false;
@@ -133,11 +163,13 @@
 
   function onPlayAgain(): void {
     showLeaderboard = false;
+    gaveUp = false;
     challengeStore.reset();
   }
 
   function onGoHome(): void {
     showLeaderboard = false;
+    gaveUp = false;
     challengeStore.reset();
     void goto('/');
   }
@@ -150,6 +182,16 @@
   );
 </script>
 
+<svelte:head>
+  <title>Play — Rubik Instructor</title>
+  <meta name="description" content="Solve the Rubik's Cube with AI-guided lessons, timed challenges, and a live leaderboard." />
+  <meta property="og:title" content="Play — Rubik Instructor" />
+  <meta property="og:description" content="Solve the Rubik's Cube with AI-guided lessons, timed challenges, and a live leaderboard." />
+  <meta property="og:url" content="https://rubik-instructor.vercel.app/play" />
+  <link rel="canonical" href="https://rubik-instructor.vercel.app/play" />
+  <meta name="robots" content="noindex" />
+</svelte:head>
+
 <CubeCanvas shiftUp={cubeShiftUp}>
   <CubeMesh />
 </CubeCanvas>
@@ -157,7 +199,7 @@
 <TouchMovePad open={keypadOpen} onClose={() => (keypadOpen = false)} />
 <StageCaption raised={keypadOpen} />
 <DemoCubeWindow />
-<HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} {onChallenge} />
+<HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} {onChallenge} {onGiveUp} />
 {#if challengeStore.status === 'idle' || challengeStore.status === 'solved'}
   <ChallengeButton layout="mobile" onclick={onChallenge} />
 {/if}
@@ -169,7 +211,7 @@
   <ConfettiOverlay onDone={onConfettiDone} />
 {/if}
 {#if showLeaderboard}
-  <LeaderboardModal solveTimeMs={finalTimeMs} {onPlayAgain} {onGoHome} />
+  <LeaderboardModal solveTimeMs={finalTimeMs} {gaveUp} {onPlayAgain} {onGoHome} />
 {/if}
 
 {#if hintVisible}

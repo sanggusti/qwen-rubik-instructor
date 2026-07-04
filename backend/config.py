@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Public base URL of this backend; must match the redirect URI whitelisted
     # in the Google Cloud Console OAuth client ({backend_url}/auth/callback).
     backend_url: str = "http://localhost:8000"
+    # Show "give_up" entries in the challenge leaderboard (default: show).
+    # Set LEADERBOARD_SHOW_GIVE_UP=false in .env to hide them globally.
+    leaderboard_show_give_up: bool = True
 
 
 settings = Settings()

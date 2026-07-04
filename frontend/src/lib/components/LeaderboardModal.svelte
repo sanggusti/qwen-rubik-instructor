@@ -5,12 +5,25 @@
 
   let {
     solveTimeMs,
+    gaveUp = false,
     onPlayAgain,
     onGoHome
-  }: { solveTimeMs: number; onPlayAgain: () => void; onGoHome: () => void } = $props();
+  }: {
+    solveTimeMs: number;
+    gaveUp?: boolean;
+    onPlayAgain: () => void;
+    onGoHome: () => void;
+  } = $props();
 
   let entries = $state<ChallengeEntry[] | null>(null);
   let loading = $state(true);
+
+  function entryBadge(entry: ChallengeEntry): string {
+    if (entry.status === 'give_up') return 'Gave Up 😵';
+    if (entry.rank === 1) return '🚀 Winner';
+    if (entry.rank === 2) return '🔥 Second';
+    return '✅ Solved';
+  }
 
   $effect(() => {
     void fetchChallengeLeaderboard(10).then((result) => {
@@ -22,15 +35,18 @@
 
 <div class="leaderboard-modal">
   <div class="dialog" role="dialog" aria-modal="true" aria-label="Leaderboard">
-    <h2>🏁 Solved!</h2>
-    <p class="your-time">Your time: <b>{formatChallengeTime(solveTimeMs)}</b></p>
+    <h2>{gaveUp ? '😓 Gave Up' : '🏁 Solved!'}</h2>
+    <p class="your-time">
+      {gaveUp ? 'Time at give-up:' : 'Your time:'}
+      <b>{formatChallengeTime(solveTimeMs)}</b>
+    </p>
 
     {#if loading}
       <p class="note">Loading leaderboard…</p>
     {:else if entries && entries.length > 0}
       <table>
         <thead>
-          <tr><th>#</th><th>Player</th><th>Best</th></tr>
+          <tr><th>#</th><th>Player</th><th>Best</th><th></th></tr>
         </thead>
         <tbody>
           {#each entries as entry (entry.rank)}
@@ -38,6 +54,7 @@
               <td>{entry.rank}</td>
               <td>{entry.username}</td>
               <td>{formatChallengeTime(entry.bestMs)}</td>
+              <td><span class="status-badge" class:give-up={entry.status === 'give_up'}>{entryBadge(entry)}</span></td>
             </tr>
           {/each}
         </tbody>
@@ -120,6 +137,14 @@
   tr.is-you td {
     color: var(--accent-a);
     background: var(--accent-a-bg);
+  }
+  .status-badge {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--accent-a);
+  }
+  .status-badge.give-up {
+    color: var(--text-dim);
   }
   .actions {
     display: flex;

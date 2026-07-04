@@ -21,10 +21,13 @@ deterministic fallback, a human QA pass on top of it, and a phone-emulation
 pass — together surfacing (and fixing) bugs no unit test could see (Part 12).
 On 2026-07-03 learner memory grew a server-side home: an optional Turso/libSQL
 mirror behind a single env var, with the browser staying authoritative and a
-timed-solve leaderboard on top (Part 13). Every phase shipped with tests; the
-current state is backend 739 tests, frontend 238 unit tests plus 25 E2E specs
-(desktop + mobile projects), all green, plus live model calls and in-browser
-checks confirming the end-to-end loop.
+timed-solve leaderboard on top (Part 13). On 2026-07-04 the app got its first
+real identity: a "Challenge Me" full-cube timed mode with Google sign-in,
+opaque bearer tokens, an anti-cheat state machine, and a public leaderboard on
+the landing page (Part 14). Every phase shipped with tests; the current state
+is backend 739 tests, frontend 238 unit tests plus 25 E2E specs (desktop +
+mobile projects), all green, plus live model calls and in-browser checks
+confirming the end-to-end loop.
 
 ## The posts
 
@@ -117,17 +120,27 @@ checks confirming the end-to-end loop.
     upsert that `COALESCE(excluded.x, x)` quietly broke, and a stage stat the
     mirror revealed had never been written at all.
 
+14. **[Challenge Me: Google auth and a leaderboard with a clock](./14-challenge-me-google-auth-and-a-leaderboard-with-a-clock.md)**
+    Part 13's leaderboard was honest about being spoofable; a public, raceable
+    one needs names that belong to someone. Google's code flow terminated in
+    FastAPI, opaque 30-day tokens (no JWTs, no refresh), a members table kept
+    deliberately separate from the anonymous learner id — and the cheat almost
+    shipped: `isSolved` doesn't know Reset restored the solved state, so
+    anything the challenge didn't initiate cancels the run. Plus the landing
+    scene's parked cube flying through the new section, and an E2E pass that
+    verifies the whole login flow without ever touching Google.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-14. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
+15. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
     service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
     services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-15. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
+16. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
     learner memory lives on each side of the mirror.
-16. **The 3-minute demo** — the cross-session memory loop, end to end.
+17. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## Research (design notes)
 

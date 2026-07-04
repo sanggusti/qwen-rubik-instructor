@@ -146,7 +146,9 @@
 <StageCaption raised={keypadOpen} />
 <DemoCubeWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} {onChallenge} />
-<ChallengeButton layout="mobile" onclick={onChallenge} />
+{#if challengeStore.status === 'idle' || challengeStore.status === 'solved'}
+  <ChallengeButton layout="mobile" onclick={onChallenge} />
+{/if}
 
 {#if authModalOpen}
   <AuthModal onClose={() => (authModalOpen = false)} onReady={onAuthReady} />

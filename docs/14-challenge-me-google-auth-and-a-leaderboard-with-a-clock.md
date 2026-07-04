@@ -93,6 +93,14 @@ it just needed to notify the store. That's the whole anti-cheat: three entry
 points, one rule, and an `isSolved` effect that additionally requires
 `status === 'running'` and a settled animator.
 
+The UI then made the rule mostly invisible: during a live run the rail hides
+Challenge Me, Guide, Scramble and Reset entirely — a racing HUD is a clock
+and an escape hatch, so a **"Give Up!"** button takes their place and calls
+the same `cancel()`. Hiding the buttons doesn't retire the cancel rule,
+though. The keyboard shortcuts and the mobile keypad's Scramble/Reset stay
+live (the keypad is how you *make moves* on a phone), so the subscriptions
+remain the actual guarantee; the hidden buttons are just good manners.
+
 Worth saying plainly: the solve *time* is still client-reported. A motivated
 cheater can POST any number with a valid token. The anti-cheat here is
 UX-level honesty (the accidental cheat is impossible), not adversarial

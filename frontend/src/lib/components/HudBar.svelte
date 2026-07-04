@@ -6,8 +6,10 @@
   import ExplorePanel from '../panels/ExplorePanel.svelte';
   import DebuggerPanel from '../panels/DebuggerPanel.svelte';
   import LevelPanel from '../panels/LevelPanel.svelte';
+  import ChallengeButton from './ChallengeButton.svelte';
   import { cubeStore } from '../stores/cube.svelte';
   import { demoStore } from '../stores/demo.svelte';
+  import { challengeStore, formatChallengeTime } from '../stores/challenge.svelte';
 
   type ExperienceKeep = 'lesson' | 'practice' | 'walkthrough' | 'none';
   type TabId = 'lessons' | 'practice' | 'explore' | 'debugger' | 'level';
@@ -18,9 +20,14 @@
   let {
     onOpenExperience,
     keypadOpen,
-    onToggleKeypad
-  }: { onOpenExperience: (keep: ExperienceKeep) => void; keypadOpen: boolean; onToggleKeypad: () => void } =
-    $props();
+    onToggleKeypad,
+    onChallenge
+  }: {
+    onOpenExperience: (keep: ExperienceKeep) => void;
+    keypadOpen: boolean;
+    onToggleKeypad: () => void;
+    onChallenge: () => void;
+  } = $props();
 
   const TABS: { id: TabId; label: string; keep: ExperienceKeep }[] = [
     { id: 'lessons', label: 'Lessons', keep: 'lesson' },
@@ -61,6 +68,10 @@
 
 <div class="guide">
   <div class="rail">
+    {#if challengeStore.status !== 'idle'}
+      <div class="challenge-timer">{formatChallengeTime(challengeStore.elapsedMs)}</div>
+    {/if}
+    <ChallengeButton layout="desktop" onclick={onChallenge} />
     <button type="button" class="guide-toggle" class:is-active={dockOpen} aria-label="Guide" aria-expanded={dockOpen} onclick={toggleDock}>
       <span class="icon" aria-hidden="true">📖</span>
       <span class="label">Guide</span>
@@ -144,6 +155,18 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+  .challenge-timer {
+    padding: 8px 10px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    color: var(--accent-y);
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-y-dim);
+    backdrop-filter: blur(14px) saturate(140%);
   }
   .quick-actions {
     display: flex;

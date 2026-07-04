@@ -17,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from auth import routes as auth_routes
+from challenge import routes as challenge_routes
 from config import settings
 from db import database, routes as db_routes, service
 from narrative import planner
@@ -39,6 +41,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Qwen Rubik Instructor", lifespan=lifespan)
 app.include_router(db_routes.router)
+app.include_router(auth_routes.router)
+app.include_router(challenge_routes.router)
 
 app.add_middleware(
     CORSMiddleware,

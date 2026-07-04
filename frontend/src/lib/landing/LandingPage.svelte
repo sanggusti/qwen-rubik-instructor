@@ -3,6 +3,7 @@
   import HeroStage from './HeroStage.svelte';
   import ContentSection from './ContentSection.svelte';
   import ContributorsSection from './ContributorsSection.svelte';
+  import LeaderboardSection from './LeaderboardSection.svelte';
   import LandingFooter from './LandingFooter.svelte';
   import PlayButton from './PlayButton.svelte';
   import CountUp from './CountUp.svelte';
@@ -83,6 +84,8 @@
 
   <div class="content">
   <HeroStage {heroProgress} {onPlay} />
+
+  <LeaderboardSection />
 
   <!-- Section 1 (odd): cube left, text right -->
   <ContentSection>

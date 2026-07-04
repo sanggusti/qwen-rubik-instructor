@@ -55,7 +55,10 @@
     const detachDrag = attachDragControls(cube, animator, camera.current, canvas, {
       onPreviewLayer: (cubies) => layerHighlight.set(cubies),
     });
-    const detachKeyboard = attachKeyboard(animator, { onReset: () => cubeStore.reset() });
+    const detachKeyboard = attachKeyboard(animator, {
+      onReset: () => cubeStore.reset(),
+      onScramble: () => cubeStore.handleExternalScramble()
+    });
     return () => {
       detachDrag();
       detachKeyboard();

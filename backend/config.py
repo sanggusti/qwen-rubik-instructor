@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # Local file path for dev (e.g. backend/data/rubik.db) or a libsql:// URL.
     turso_database_url: str = ""
     turso_auth_token: str = ""
+    # Google OAuth for the challenge-mode leaderboard. Empty client id leaves
+    # /auth endpoints returning 503 (same spirit as the empty-URL kill switch).
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    frontend_url: str = "http://localhost:5173"
+    # Public base URL of this backend; must match the redirect URI whitelisted
+    # in the Google Cloud Console OAuth client ({backend_url}/auth/callback).
+    backend_url: str = "http://localhost:8000"
 
 
 settings = Settings()

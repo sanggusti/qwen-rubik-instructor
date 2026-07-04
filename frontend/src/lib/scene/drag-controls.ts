@@ -9,6 +9,9 @@ interface PendingDrag {
   hitFace: FaceKey;
   hitCubie: Cubie;
   hitWorldPoint: THREE.Vector3;
+  // Trails the cursor by ANCHOR_WINDOW px so move direction follows the recent
+  // swipe rather than the total displacement from start (last-direction wins).
+  dirAnchor: THREE.Vector2;
 }
 
 export interface DragOptions {
@@ -38,6 +41,9 @@ export function attachDragControls(
 ): () => void {
   const threshold = opts.threshold ?? 14;
   const previewThreshold = opts.previewThreshold ?? 6;
+  // Recent-direction window: the anchor trails the cursor by this many px so
+  // that direction at release reflects the last swipe, not the total vector.
+  const ANCHOR_WINDOW = 40;
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   let pending: PendingDrag | null = null;
@@ -100,7 +106,8 @@ export function attachDragControls(
       startScreen: new THREE.Vector2(ev.clientX, ev.clientY),
       hitFace: hit.face,
       hitCubie: hit.cubie,
-      hitWorldPoint: hit.point
+      hitWorldPoint: hit.point,
+      dirAnchor: new THREE.Vector2(ev.clientX, ev.clientY)
     };
     lastDirKey = null;
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
@@ -109,9 +116,24 @@ export function attachDragControls(
 
   function onPointerMove(ev: PointerEvent): void {
     if (!pending) return;
-    const dx = ev.clientX - pending.startScreen.x;
-    const dy = ev.clientY - pending.startScreen.y;
-    if (Math.hypot(dx, dy) < previewThreshold) { setPreview(null, 0); return; }
+
+    // Advance the anchor so it trails the cursor by at most ANCHOR_WINDOW px.
+    const fromAnchorDx = ev.clientX - pending.dirAnchor.x;
+    const fromAnchorDy = ev.clientY - pending.dirAnchor.y;
+    const fromAnchorLen = Math.hypot(fromAnchorDx, fromAnchorDy);
+    if (fromAnchorLen > ANCHOR_WINDOW) {
+      pending.dirAnchor.x = ev.clientX - (fromAnchorDx / fromAnchorLen) * ANCHOR_WINDOW;
+      pending.dirAnchor.y = ev.clientY - (fromAnchorDy / fromAnchorLen) * ANCHOR_WINDOW;
+    }
+
+    // Gate the preview on total travel from start, but resolve axis/direction
+    // from the recent vector (anchor → current) so it follows the last swipe.
+    const totalDx = ev.clientX - pending.startScreen.x;
+    const totalDy = ev.clientY - pending.startScreen.y;
+    if (Math.hypot(totalDx, totalDy) < previewThreshold) { setPreview(null, 0); return; }
+
+    const dx = ev.clientX - pending.dirAnchor.x;
+    const dy = ev.clientY - pending.dirAnchor.y;
     const result = resolveAxisSlice(camera, pending, dx, dy);
     setPreview(result?.axis ?? null, result?.slice ?? 0);
     if (result) {
@@ -138,13 +160,22 @@ export function attachDragControls(
     if (!pending) return;
     setPreview(null, 0);
     lastDirKey = null;
-    const dx = ev.clientX - pending.startScreen.x;
-    const dy = ev.clientY - pending.startScreen.y;
-    if (Math.hypot(dx, dy) < threshold) {
+
+    // Cancel if total travel from start is below threshold.
+    const totalDx = ev.clientX - pending.startScreen.x;
+    const totalDy = ev.clientY - pending.startScreen.y;
+    if (Math.hypot(totalDx, totalDy) < threshold) {
       pending = null;
       opts.onDragEnd?.();
       return;
     }
+
+    // Prefer the recent direction (anchor → release point); fall back to total
+    // displacement if the anchor hasn't moved far enough to be meaningful.
+    const recentDx = ev.clientX - pending.dirAnchor.x;
+    const recentDy = ev.clientY - pending.dirAnchor.y;
+    const dx = Math.hypot(recentDx, recentDy) > threshold ? recentDx : totalDx;
+    const dy = Math.hypot(recentDx, recentDy) > threshold ? recentDy : totalDy;
 
     const move = resolveDragToMove(camera, pending, dx, dy);
     pending = null;

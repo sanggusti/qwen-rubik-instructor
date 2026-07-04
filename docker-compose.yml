@@ -1,11 +1,11 @@
 configs:
   caddyfile:
     content: |
-      {$DOMAIN} {
+      ${DOMAIN} {
           reverse_proxy frontend:80
       }
 
-      api$DOMAIN {
+      api${DOMAIN} {
           reverse_proxy backend:8000
       }
 

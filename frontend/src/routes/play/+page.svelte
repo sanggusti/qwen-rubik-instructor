@@ -86,6 +86,16 @@
     }
   });
 
+  // Auto-trigger challenge when landing via ?challenge=1.
+  $effect(() => {
+    if (!authStore.isLoaded) return;
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('challenge')) return;
+    url.searchParams.delete('challenge');
+    history.replaceState(null, '', url);
+    onChallenge();
+  });
+
   // Timer starts once the scramble animation settles.
   $effect(() => {
     if (challengeStore.status === 'scrambling' && !cubeStore.isBusy) {

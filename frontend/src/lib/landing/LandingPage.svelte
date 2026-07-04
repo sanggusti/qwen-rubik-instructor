@@ -85,8 +85,6 @@
   <div class="content">
   <HeroStage {heroProgress} {onPlay} />
 
-  <LeaderboardSection />
-
   <!-- Section 1 (odd): cube left, text right -->
   <ContentSection>
     <h2 class="neon-heading section-heading">ANATOMY OF A CUBE</h2>
@@ -222,6 +220,8 @@
       <PlayButton label="Start solving →" {onPlay} />
     </div>
   </ContentSection>
+
+  <LeaderboardSection />
 
   <ContributorsSection />
   <LandingFooter />

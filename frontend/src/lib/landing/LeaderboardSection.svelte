@@ -1,13 +1,8 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { fetchChallengeLeaderboard, type ChallengeEntry } from '../api/challenge';
   import { formatChallengeTime } from '../stores/challenge.svelte';
 
-  // Public top-10 of challenge mode. Hides itself entirely when the board is
-  // empty or the backend is down — the landing page reads fine without it.
-  //
-  // Renders a `.content-section` grid (cube spacer + text panel) so the
-  // persistent LandingScene cube parks in the spacer, and the scroll timeline
-  // (LandingPage measure()) picks this section up like any other.
   let entries = $state<ChallengeEntry[] | null>(null);
   let loading = $state(true);
 
@@ -33,34 +28,36 @@
   }
 </script>
 
-{#if loading || (entries && entries.length > 0)}
-  <section class="content-section leaderboard-section">
-    <div class="cube-col" aria-hidden="true"></div>
-    <div class="text-col glass-panel">
-      {#if loading}
-        <div class="skeleton" aria-busy="true"></div>
-      {:else if entries}
-        <h2 class="neon-heading section-heading">⚡ FASTEST SOLVERS</h2>
-        <p class="intro">Challenge mode: one 20-move scramble, one clock. Beat them.</p>
-        <table>
-          <thead>
-            <tr><th>#</th><th>Player</th><th>Best time</th><th>When</th></tr>
-          </thead>
-          <tbody>
-            {#each entries as entry (entry.rank)}
-              <tr>
-                <td class="rank">{entry.rank}</td>
-                <td>{entry.username}</td>
-                <td class="time">{formatChallengeTime(entry.bestMs)}</td>
-                <td class="when">{relativeDate(entry.at)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      {/if}
-    </div>
-  </section>
-{/if}
+<section class="content-section leaderboard-section">
+  <div class="cube-col" aria-hidden="true"></div>
+  <div class="text-col glass-panel">
+    {#if loading}
+      <div class="skeleton" aria-busy="true"></div>
+    {:else if entries && entries.length > 0}
+      <h2 class="neon-heading section-heading">⚡ FASTEST SOLVERS</h2>
+      <p class="intro">Challenge mode: one 20-move scramble, one clock. Beat them.</p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Player</th><th>Best time</th><th>When</th></tr>
+        </thead>
+        <tbody>
+          {#each entries as entry (entry.rank)}
+            <tr>
+              <td class="rank">{entry.rank}</td>
+              <td>{entry.username}</td>
+              <td class="time">{formatChallengeTime(entry.bestMs)}</td>
+              <td class="when">{relativeDate(entry.at)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {:else}
+      <h2 class="neon-heading section-heading">⚡ FASTEST SOLVERS</h2>
+      <p class="empty-msg">You wanna make first move?</p>
+      <button class="challenge-btn" onclick={() => goto('/play?challenge=1')}>Challenge Me</button>
+    {/if}
+  </div>
+</section>
 
 <style>
   /* Grid mirrors ContentSection.svelte so the parked cube lines up. */
@@ -137,6 +134,30 @@
   .when {
     color: var(--text-dim);
     font-size: 11px;
+  }
+
+  .empty-msg {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+  .challenge-btn {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 10px 22px;
+    background: var(--accent-a);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .challenge-btn:hover {
+    filter: brightness(1.15);
   }
 
   @media (max-width: 760px) {

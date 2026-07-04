@@ -90,17 +90,12 @@ export function attachDragControls(
     return { face, point: hit.point.clone(), cubie };
   }
 
-  // Returns true if the current ndc position overlaps any part of the cube
-  // (bodies or stickers). Used to cancel gestures that end outside the cube.
-  function findCubeHit(): boolean {
+  // Returns true if the current ndc ray hits within the cube's bounding sphere
+  // expanded by 20%, providing a tolerance zone for near-edge drags.
+  function isNearCube(): boolean {
     raycaster.setFromCamera(ndc, camera);
-    const meshes: THREE.Object3D[] = [];
-    for (const c of cube.cubies) {
-      c.mesh.traverse(child => {
-        if ((child as any).isMesh) meshes.push(child);
-      });
-    }
-    return raycaster.intersectObjects(meshes, false).length > 0;
+    const radius = 1.5 * Math.sqrt(3) * cube.root.scale.x * 1.2;
+    return raycaster.ray.intersectsSphere(new THREE.Sphere(cube.root.position, radius));
   }
 
   // Tracks the last emitted direction key to avoid firing onDragDirection on every
@@ -129,6 +124,10 @@ export function attachDragControls(
 
   function onPointerMove(ev: PointerEvent): void {
     if (!pending) return;
+
+    // Clear the highlight when the pointer leaves the tolerance zone.
+    ndcFromEvent(ev);
+    if (!isNearCube()) { setPreview(null, 0); return; }
 
     // Advance the anchor so it trails the cursor by at most ANCHOR_WINDOW px.
     const fromAnchorDx = ev.clientX - pending.dirAnchor.x;
@@ -174,9 +173,9 @@ export function attachDragControls(
     setPreview(null, 0);
     lastDirKey = null;
 
-    // Cancel if the pointer released outside the cube.
+    // Cancel if the pointer released outside the cube (plus 20% tolerance).
     ndcFromEvent(ev);
-    if (!findCubeHit()) {
+    if (!isNearCube()) {
       pending = null;
       opts.onDragEnd?.();
       return;

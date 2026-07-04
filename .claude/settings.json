@@ -61,7 +61,8 @@
       "Bash(.venv/bin/python -c \"from config import settings; print\\('DB URL:', repr\\(settings.turso_database_url\\)\\)\")",
       "Bash(cat ~/.docker/config.json 2>/dev/null || echo \"not found\")",
       "Read(//Users/suryaagung/.docker/**)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(npx vitest *)"
     ],
     "additionalDirectories": [
       "/private/tmp",

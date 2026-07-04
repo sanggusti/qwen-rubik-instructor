@@ -90,6 +90,19 @@ export function attachDragControls(
     return { face, point: hit.point.clone(), cubie };
   }
 
+  // Returns true if the current ndc position overlaps any part of the cube
+  // (bodies or stickers). Used to cancel gestures that end outside the cube.
+  function findCubeHit(): boolean {
+    raycaster.setFromCamera(ndc, camera);
+    const meshes: THREE.Object3D[] = [];
+    for (const c of cube.cubies) {
+      c.mesh.traverse(child => {
+        if ((child as any).isMesh) meshes.push(child);
+      });
+    }
+    return raycaster.intersectObjects(meshes, false).length > 0;
+  }
+
   // Tracks the last emitted direction key to avoid firing onDragDirection on every
   // pointermove when nothing has changed (face and direction stay the same).
   let lastDirKey: string | null = null;
@@ -160,6 +173,14 @@ export function attachDragControls(
     if (!pending) return;
     setPreview(null, 0);
     lastDirKey = null;
+
+    // Cancel if the pointer released outside the cube.
+    ndcFromEvent(ev);
+    if (!findCubeHit()) {
+      pending = null;
+      opts.onDragEnd?.();
+      return;
+    }
 
     // Cancel if total travel from start is below threshold.
     const totalDx = ev.clientX - pending.startScreen.x;

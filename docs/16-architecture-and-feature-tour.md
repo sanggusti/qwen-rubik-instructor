@@ -59,6 +59,16 @@ a 26-move scramble in 176 narrated moves, verified solved by the engine:
 
 ![Walkthrough solving the learner's cube](./images/qwen-walkthrough-solving.png)
 
+The whole sequence in motion — scramble, streamed narration, and the solve
+landing on the learner's cube:
+
+![Qwen solve, animated](./images/qwen-solve-my-cube.gif)
+
+And the lesson flow, from "Lesson from my cube (Qwen)" to a generated step
+with moves and hints:
+
+![Qwen lesson, animated](./images/qwen-lesson-from-my-cube.gif)
+
 ## The memory system
 
 ![Memory system](./diagrams/04-memory-system.png)
@@ -118,6 +128,11 @@ The same leaderboard feeds the landing page section:
 
 ![Landing leaderboard](./images/landing-leaderboard-live.png)
 
+A full run in motion — start, server-timed scramble, the solve, confetti, and
+the result modal:
+
+![Challenge run, animated](./images/challenge-me-run.gif)
+
 ## Deployment
 
 ![Deployment](./diagrams/07-deployment.png)
@@ -148,6 +163,11 @@ you scroll, and parks itself beside each section):
 ![Landing hero](./images/landing-hero.png)
 
 ![Landing content section](./images/landing-content-section.png)
+
+The scroll in motion — the cube scrubs through a real solve and parks beside
+each section on its way down to the live leaderboard:
+
+![Landing scroll, animated](./images/landing-scroll.gif)
 
 **The play surface** — cube, first-visit controls hint, and the rail
 (Challenge Me, Guide, Scramble, Reset):

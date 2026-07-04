@@ -8,7 +8,7 @@ mid-lesson Q&A, and a memory that remembers how you're doing across sessions.
 **Live at [rubik.suryatresna.asia](https://rubik.suryatresna.asia)** · built for
 the Qwen Cloud Hackathon (MemoryAgent track).
 
-![Qwen narrating a solve](./docs/images/qwen-walkthrough.png)
+![Qwen narrating and solving a scrambled cube](./docs/images/qwen-solve-my-cube.gif)
 
 ## Features
 

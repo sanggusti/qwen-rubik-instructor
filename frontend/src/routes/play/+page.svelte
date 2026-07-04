@@ -20,7 +20,9 @@
 
   // E2E hook: dev-only, stripped from production builds.
   if (import.meta.env.DEV && typeof window !== 'undefined') {
-    (window as unknown as Record<string, unknown>).__cubeStore = cubeStore;
+    const w = window as unknown as Record<string, unknown>;
+    w.__cubeStore = cubeStore;
+    w.__challengeStore = challengeStore;
   }
 
   // Only one experience runs at a time, so the stage caption has a single

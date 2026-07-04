@@ -103,13 +103,15 @@ export function attachDragControls(
   let lastDirKey: string | null = null;
 
   function onPointerDown(ev: PointerEvent): void {
-    if (animator.isBusy()) return;
     ndcFromEvent(ev);
     const hit = findStickerHit();
     if (!hit) return;
-    // Claim the gesture so it doesn't also reach OrbitControls (listening on an
-    // ancestor element) and orbit the camera while a face-turn drag is in progress.
-    ev.stopPropagation();
+    // Claim the gesture before OrbitControls' bubble-phase handler runs.
+    // stopImmediatePropagation prevents OrbitControls from ever seeing the
+    // pointerdown, so it never adds its pointermove/pointerup listeners to
+    // document and the camera stays still during face-turn drags.
+    ev.stopImmediatePropagation();
+    if (animator.isBusy()) return;
     pending = {
       startScreen: new THREE.Vector2(ev.clientX, ev.clientY),
       hitFace: hit.face,
@@ -210,12 +212,14 @@ export function attachDragControls(
     opts.onDragEnd?.();
   }
 
-  domEl.addEventListener('pointerdown', onPointerDown);
+  // Use capture phase so this runs before OrbitControls' bubble-phase listener
+  // on the same canvas element, allowing stopImmediatePropagation to fully block it.
+  domEl.addEventListener('pointerdown', onPointerDown, { capture: true });
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
   return () => {
-    domEl.removeEventListener('pointerdown', onPointerDown);
+    domEl.removeEventListener('pointerdown', onPointerDown, { capture: true });
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('pointercancel', onPointerCancel);

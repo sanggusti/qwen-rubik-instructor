@@ -45,7 +45,7 @@
       <p class="intro">Challenge mode: one 20-move scramble, one clock. Beat them.</p>
       <table>
         <thead>
-          <tr><th>#</th><th>Player</th><th>Best time</th><th></th><th>When</th></tr>
+          <tr><th>#</th><th>Player</th><th>Best time</th><th></th></tr>
         </thead>
         <tbody>
           {#each entries as entry (entry.rank)}
@@ -54,7 +54,6 @@
               <td>{entry.username}</td>
               <td class="time">{formatChallengeTime(entry.bestMs)}</td>
               <td><span class="status-badge" class:give-up={entry.status === 'give_up'}>{entryBadge(entry)}</span></td>
-              <td class="when">{relativeDate(entry.at)}</td>
             </tr>
           {/each}
         </tbody>

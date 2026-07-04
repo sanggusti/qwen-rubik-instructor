@@ -2,7 +2,9 @@
   "mcpServers": {
     "svelte": {
       "command": "npx",
-      "args": ["@sveltejs/mcp@latest"]
+      "args": [
+        "@sveltejs/mcp@latest"
+      ]
     },
     "playwright": {
       "command": "npx",
@@ -10,6 +12,12 @@
         "@playwright/mcp@latest",
         "--browser",
         "chromium"
+      ]
+    },
+    "drawio": {
+      "command": "npx",
+      "args": [
+        "@drawio/mcp"
       ]
     }
   }

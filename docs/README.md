@@ -24,7 +24,12 @@ mirror behind a single env var, with the browser staying authoritative and a
 timed-solve leaderboard on top (Part 13). On 2026-07-04 the app got its first
 real identity: a "Challenge Me" full-cube timed mode with Google sign-in,
 opaque bearer tokens, an anti-cheat state machine, and a public leaderboard on
-the landing page (Part 14). Every phase shipped with tests; the current state
+the landing page (Part 14). Alongside it, the stack left the laptop: multi-stage
+Docker images, a tag-triggered build-and-push pipeline, and a `v1.0.0`
+docker-compose deployment onto an Alibaba Cloud VPS behind Caddy-managed HTTPS,
+live at rubik.suryatresna.asia (Part 15). The promised architecture post then
+landed as Part 16: eight draw.io diagrams and a screenshot tour captured from
+a live run. Every phase shipped with tests; the current state
 is backend 739 tests, frontend 238 unit tests plus 25 E2E specs (desktop +
 mobile projects), all green, plus live model calls and in-browser checks
 confirming the end-to-end loop.
@@ -130,16 +135,29 @@ confirming the end-to-end loop.
     scene's parked cube flying through the new section, and an E2E pass that
     verifies the whole login flow without ever touching Google.
 
+15. **[One box, three containers: deploying the stack to Alibaba Cloud](./15-one-box-three-containers-deploying-to-alibaba-cloud.md)**
+    The hackathon requires the stack to run on Alibaba infrastructure, not a
+    laptop. Two multi-stage Docker images, a three-service compose file where
+    Caddy owns the only published ports and provisions its own TLS, and a
+    tag-to-deploy pipeline that ends in `docker compose pull` over SSH — onto a
+    2-vCPU Simple Application Server idling at a quarter of its RAM. Plus the
+    `api${DOMAIN}` no-dot quirk that shipped as a decision, and the gaps: a
+    dead Caddyfile, `:latest` deploys, and Part 14's auth vars not yet in
+    compose.
+
+16. **[The architecture, drawn — and a tour of everything the app can do](./16-architecture-and-feature-tour.md)**
+    The whole system as it stands, as eight draw.io diagrams (system context,
+    services, narration pipeline, memory system, hints, challenge/auth,
+    deployment, data model — sources in [`diagrams/`](./diagrams/)) and a
+    screenshot tour captured from a live run with real Qwen narration: lessons,
+    hints, checkpoints, drills, and the full challenge-mode loop through to the
+    leaderboard.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-15. **Deploying the backend to Alibaba Cloud** — moving the local `uvicorn`
-    service onto Alibaba Cloud (Function Compute / ECS) with proof of the Alibaba
-    services in use. Today the only Alibaba usage is the DashScope call to Qwen.
-16. **The architecture diagram** — Qwen Cloud → backend → frontend, and where the
-    learner memory lives on each side of the mirror.
 17. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## Research (design notes)

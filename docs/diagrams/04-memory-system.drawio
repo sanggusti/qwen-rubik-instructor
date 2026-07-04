@@ -1,0 +1,78 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="mem-sys" name="Memory System">
+    <mxGraphModel dx="1000" dy="700" grid="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1660" pageHeight="960" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="MemoryAgent — learner memory with decay and forgetting" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="800" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cl" value="Browser (client-authoritative)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="440" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1" value="Learning events&#10;lesson steps, drill rounds, mistakes, times" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="cl">
+          <mxGeometry x="20" y="40" width="400" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2" value="education/profile.ts + stores/profile.svelte.ts&#10;per-stage mastery, attempts, mistakes, best times" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="cl">
+          <mxGeometry x="20" y="115" width="400" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3" value="buildMemoryDigest() — decay &amp; forgetting&#10;mistakes decay (14-day half-life)&#10;forget below 0.5 weight&#10;mastered stages become due for review after 21 days" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="cl">
+          <mxGeometry x="20" y="190" width="400" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4" value="Recommendation &amp; coaching&#10;next-lesson hints in StageCaption" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="cl">
+          <mxGeometry x="20" y="295" width="400" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5" value="localStorage&#10;(survives reloads, not devices)" style="shape=cylinder3;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;boundedLbl=1;" vertex="1" parent="cl">
+          <mxGeometry x="120" y="380" width="200" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="be" value="Backend (FastAPI)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="620" y="80" width="440" height="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="POST /memory/sync&#10;client snapshot wins — wholesale replace of&#10;sessions + stage_stats (digest ported twice, client is source of truth)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="be">
+          <mxGeometry x="20" y="40" width="400" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="GET /memory/{user_id}&#10;profile + digest for a returning learner" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="be">
+          <mxGeometry x="20" y="135" width="400" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="db/service.py load_digest — server-side port of the digest&#10;MISTAKE_HALF_LIFE = 14 d · REVIEW_INTERVAL = 21 d&#10;FORGET_THRESHOLD = 0.5&#10;decayed-weight struggles + due-for-review stages" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="be">
+          <mxGeometry x="20" y="210" width="400" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4" value="llm_narrator memory injection&#10;welcome_line (&quot;Welcome back…&quot;)&#10;stage_struggle_note · MEMORY_CHAR_BUDGET = 240" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="be">
+          <mxGeometry x="20" y="320" width="400" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5" value="Kill switch: TURSO_DATABASE_URL empty ⇒ persistence off,&#10;endpoints no-op / 503, Qwen falls back to the client-sent digest" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="be">
+          <mxGeometry x="20" y="410" width="400" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="db" value="Turso / libSQL" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="80" width="400" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="t1" value="users — anonymous id (client UUID), handle, level, method" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="db">
+          <mxGeometry x="20" y="40" width="360" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="t2" value="sessions — learning-history event log" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="db">
+          <mxGeometry x="20" y="105" width="360" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3" value="stage_stats — per-stage mastery, attempts, mistakes, best_ms&#10;(due-for-review is always derived, never stored)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="db">
+          <mxGeometry x="20" y="165" width="360" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="t4" value="solve_attempts — timed drill log (per-drill leaderboard = MIN per user)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="db">
+          <mxGeometry x="20" y="240" width="360" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="best-effort sync&#10;(errors swallowed)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=1;exitY=0.12;exitDx=0;exitDy=0;entryX=0;entryY=0.12;entryDx=0;entryDy=0;" edge="1" parent="1" source="cl" target="be">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;" edge="1" parent="1" source="be" target="db">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="digest ≤ 240 chars → Qwen prompt&#10;(&quot;Welcome back&quot;, struggles, review nudges)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=1;" edge="1" parent="1" source="be" target="cl">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -139,10 +139,6 @@
     color: var(--accent-y);
     font-variant-numeric: tabular-nums;
   }
-  .when {
-    color: var(--text-dim);
-    font-size: 11px;
-  }
   .status-badge {
     font-size: 10px;
     letter-spacing: 0.06em;
@@ -188,9 +184,6 @@
     }
     .text-col {
       padding: 24px 20px;
-    }
-    .when {
-      display: none;
     }
   }
 </style>

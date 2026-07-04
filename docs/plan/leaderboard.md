@@ -259,6 +259,74 @@ Click "Challenge Me"
 
 ---
 
+---
+
+### Phase 6 — Playwright E2E Verification
+
+> Prerequisites: backend running on `http://localhost:8000`, frontend dev server on `http://localhost:5173`.  
+> All checks use the MCP Playwright tools (`browser_navigate`, `browser_snapshot`, `browser_take_screenshot`, `browser_click`, `browser_fill_form`, `browser_evaluate`, `browser_wait_for`).
+
+- [ ] **Check 1: Landing page leaderboard renders**
+  - [ ] `browser_navigate` to `http://localhost:5173`
+  - [ ] `browser_wait_for` selector `.leaderboard-section` to appear
+  - [ ] `browser_take_screenshot` — confirm ranked table or empty/hidden state (no error shown)
+  - [ ] `browser_snapshot` — check no JS console errors in `browser_console_messages`
+
+- [ ] **Check 2: Challenge Me button placement**
+  - [ ] `browser_navigate` to `http://localhost:5173/play`
+  - [ ] `browser_snapshot` — confirm "Challenge Me" button appears above the Guide button in the left rail
+  - [ ] `browser_take_screenshot` — visual confirmation desktop layout
+  - [ ] `browser_resize` to `390 x 844` (mobile viewport)
+  - [ ] `browser_snapshot` — confirm "Challenge Me!" FAB appears at top-right
+  - [ ] `browser_take_screenshot` — visual confirmation mobile layout
+  - [ ] `browser_resize` back to `1280 x 800`
+
+- [ ] **Check 3: AuthModal opens and Google button is present**
+  - [ ] `browser_navigate` to `http://localhost:5173/play`
+  - [ ] `browser_click` on "Challenge Me" button
+  - [ ] `browser_wait_for` selector `.auth-modal` to appear
+  - [ ] `browser_snapshot` — confirm Step 1 with "Sign in with Google" button visible
+  - [ ] `browser_take_screenshot`
+  - [ ] `browser_click` "Cancel" — confirm modal closes
+  - [ ] `browser_snapshot`
+
+- [ ] **Check 4: Username step renders after auth (simulate token)**
+  - [ ] `browser_evaluate` to inject a mock session: `localStorage.setItem('auth_token', 'test-token')` and seed `authStore` to a state where `username` is null
+  - [ ] `browser_navigate` to `http://localhost:5173/play?token=<test-token>` (or trigger manually)
+  - [ ] `browser_wait_for` selector `.auth-modal` step 2 to appear
+  - [ ] `browser_snapshot` — confirm username input field is shown
+  - [ ] `browser_fill_form` username field with `testplayer`
+  - [ ] `browser_take_screenshot`
+
+- [ ] **Check 5: Timer appears and runs during challenge**
+  - [ ] With a valid authenticated session, `browser_click` "Challenge Me"
+  - [ ] `browser_wait_for` selector `.challenge-timer` to appear in the HUD rail
+  - [ ] `browser_take_screenshot` — timer shows `00:00.0`
+  - [ ] Wait a moment; `browser_snapshot` — confirm timer is incrementing
+  - [ ] `browser_take_screenshot` — timer shows non-zero value
+
+- [ ] **Check 6: Confetti fires on solve**
+  - [ ] `browser_evaluate` to programmatically solve the cube: `window.__cubeStore.reset()` (puts cube in solved state)
+  - [ ] `browser_wait_for` selector `.confetti-overlay` to appear
+  - [ ] `browser_take_screenshot` — confetti visible over the cube
+  - [ ] `browser_snapshot`
+
+- [ ] **Check 7: LeaderboardModal appears after confetti**
+  - [ ] After confetti: `browser_wait_for` selector `.leaderboard-modal` (up to 12 000 ms — 10 s confetti + margin)
+  - [ ] `browser_snapshot` — confirm time displayed, top-10 table rendered, user row highlighted
+  - [ ] `browser_take_screenshot`
+  - [ ] `browser_click` "Play Again" — confirm modal closes and timer resets to `00:00.0`
+  - [ ] `browser_snapshot`
+
+- [ ] **Check 8: Score persists in leaderboard**
+  - [ ] `browser_navigate` to `http://localhost:5173`
+  - [ ] `browser_wait_for` selector `.leaderboard-section`
+  - [ ] `browser_snapshot` — confirm submitted score appears in the landing page table
+  - [ ] `browser_take_screenshot`
+  - [ ] `browser_network_requests` — confirm `GET /challenge/leaderboard` returned 200 with correct payload
+
+---
+
 ## New Files Summary
 
 ```

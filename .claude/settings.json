@@ -54,7 +54,14 @@
       "Bash(rm -f mobile-hero.png mobile-headline.png mobile-footer.png mobile-hero2.png mobile-hero3.png mobile-hero4.png tablet-hero.png tablet-hero2.png)",
       "Bash(lsof -ti:5173)",
       "Bash(xargs kill -9)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(.venv/bin/python -c \"import libsql; print\\('libsql ok'\\)\")",
+      "Bash(.venv/bin/python -c \"from config import settings; print\\('DB URL:', repr\\(settings.turso_database_url\\)\\); print\\('Google ID:', repr\\(settings.google_client_id[:10] if settings.google_client_id else ''\\)\\)\")",
+      "Bash(.venv/bin/python -c \"from config import settings; print\\('DB URL:', repr\\(settings.turso_database_url\\)\\); print\\('Google ID set:', bool\\(settings.google_client_id\\)\\)\")",
+      "Bash(.venv/bin/python -c \"from config import settings; print\\('DB URL:', repr\\(settings.turso_database_url\\)\\)\")",
+      "Bash(cat ~/.docker/config.json 2>/dev/null || echo \"not found\")",
+      "Read(//Users/suryaagung/.docker/**)",
+      "Bash(python3 -c ' *)"
     ],
     "additionalDirectories": [
       "/private/tmp",

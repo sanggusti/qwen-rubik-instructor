@@ -31,13 +31,14 @@ services:
   backend:
     build:
       context: ./backend
-    image: docker.io/suryatresna/qwen-rubik-instructor-backend:v1.0.0
+    # image: docker.io/suryatresna/qwen-rubik-instructor-backend:v1.0.0
     environment:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       CORS_ORIGINS: '["https://${DOMAIN}"]'
-      # Optional Turso persistence (empty = stateless backend, localStorage only).
-      TURSO_DATABASE_URL: ${TURSO_DATABASE_URL:-}
+      TURSO_DATABASE_URL: ${TURSO_DATABASE_URL}
       TURSO_AUTH_TOKEN: ${TURSO_AUTH_TOKEN:-}
+    volumes:
+      - db_data:/app/data
     restart: unless-stopped
 
   frontend:
@@ -45,9 +46,10 @@ services:
       context: ./frontend
       args:
         PUBLIC_BACKEND_URL: https://api${DOMAIN}
-    image: docker.io/suryatresna/qwen-rubik-instructor-frontend:v1.0.0
+    # image: docker.io/suryatresna/qwen-rubik-instructor-frontend:v1.0.0
     restart: unless-stopped
 
 volumes:
   caddy_data:
   caddy_config:
+  db_data:

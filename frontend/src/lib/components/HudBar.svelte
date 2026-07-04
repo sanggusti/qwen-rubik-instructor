@@ -90,7 +90,7 @@
         <span class="icon" aria-hidden="true">📖</span>
         <span class="label">Guide</span>
       </button>
-      {#if !keypadOpen}
+      {#if !keypadOpen && challengeStore.status === 'idle'}
         <div class="quick-actions">
           <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
           <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>

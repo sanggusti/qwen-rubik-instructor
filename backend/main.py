@@ -34,8 +34,8 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # No-op when TURSO_DATABASE_URL is unset — the backend stays stateless.
-    database.init()
+    if not database.init():
+        raise RuntimeError("database init failed; check TURSO_DATABASE_URL and logs")
     yield
 
 

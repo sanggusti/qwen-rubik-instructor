@@ -51,7 +51,10 @@
       "Bash(npm view *)",
       "Read(//Users/suryaagung/.npm/_npx/**)",
       "Bash(node cli.js install chromium)",
-      "Bash(rm -f mobile-hero.png mobile-headline.png mobile-footer.png mobile-hero2.png mobile-hero3.png mobile-hero4.png tablet-hero.png tablet-hero2.png)"
+      "Bash(rm -f mobile-hero.png mobile-headline.png mobile-footer.png mobile-hero2.png mobile-hero3.png mobile-hero4.png tablet-hero.png tablet-hero2.png)",
+      "Bash(lsof -ti:5173)",
+      "Bash(xargs kill -9)",
+      "Bash(npx tsc *)"
     ],
     "additionalDirectories": [
       "/private/tmp",

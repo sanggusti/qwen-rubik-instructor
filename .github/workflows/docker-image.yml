@@ -35,7 +35,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             docker.io/suryatresna/qwen-rubik-instructor-backend:${{ steps.meta.outputs.version }}
@@ -45,7 +45,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           build-args: |
             PUBLIC_BACKEND_URL=${{ secrets.PUBLIC_BACKEND_URL }}

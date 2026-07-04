@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { CubeMesh, Cubie, Axis } from './cube';
 import type { MoveAnimator } from './animator';
 import type { FaceKey } from '../cube/state';
-import { moveFromAxisSlice } from '../cube/moves';
+import { moveFromAxisSlice, parseMove } from '../cube/moves';
 
 interface PendingDrag {
   startScreen: THREE.Vector2;
@@ -17,6 +17,12 @@ export interface DragOptions {
   // guidance), or null once that's no longer known (gesture ended, or too short to
   // tell yet).
   onPreviewLayer?: (cubies: Cubie[] | null) => void;
+  // Called when a sticker hit is confirmed (drag has started on a face).
+  onDragStart?: (face: FaceKey) => void;
+  // Called once the drag has travelled far enough to determine a rotation direction.
+  onDragDirection?: (face: FaceKey, direction: 1 | -1) => void;
+  // Called when the drag gesture ends (pointer up or cancelled).
+  onDragEnd?: () => void;
   // Pixels of drag below which we ignore the gesture.
   threshold?: number;
   // Pixels of drag below which we don't yet show layer-preview guidance.
@@ -78,6 +84,10 @@ export function attachDragControls(
     return { face, point: hit.point.clone(), cubie };
   }
 
+  // Tracks the last emitted direction key to avoid firing onDragDirection on every
+  // pointermove when nothing has changed (face and direction stay the same).
+  let lastDirKey: string | null = null;
+
   function onPointerDown(ev: PointerEvent): void {
     if (animator.isBusy()) return;
     ndcFromEvent(ev);
@@ -92,7 +102,9 @@ export function attachDragControls(
       hitCubie: hit.cubie,
       hitWorldPoint: hit.point
     };
+    lastDirKey = null;
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
+    opts.onDragStart?.(hit.face);
   }
 
   function onPointerMove(ev: PointerEvent): void {
@@ -102,23 +114,49 @@ export function attachDragControls(
     if (Math.hypot(dx, dy) < previewThreshold) { setPreview(null, 0); return; }
     const result = resolveAxisSlice(camera, pending, dx, dy);
     setPreview(result?.axis ?? null, result?.slice ?? 0);
+    if (result) {
+      const move = resolveDragToMove(camera, pending, dx, dy);
+      if (move) {
+        if (move !== lastDirKey) {
+          lastDirKey = move;
+          const spec = parseMove(move);
+          if (spec && spec.slices.length === 1) {
+            const FACE_FROM_SPEC: Partial<Record<string, FaceKey>> = {
+              'x:1': 'R', 'x:-1': 'L',
+              'y:1': 'U', 'y:-1': 'D',
+              'z:1': 'F', 'z:-1': 'B',
+            };
+            const moveFace = FACE_FROM_SPEC[`${spec.axis}:${spec.slices[0]}`];
+            if (moveFace) opts.onDragDirection?.(moveFace, spec.dir);
+          }
+        }
+      }
+    }
   }
 
   function onPointerUp(ev: PointerEvent): void {
     if (!pending) return;
     setPreview(null, 0);
+    lastDirKey = null;
     const dx = ev.clientX - pending.startScreen.x;
     const dy = ev.clientY - pending.startScreen.y;
-    if (Math.hypot(dx, dy) < threshold) { pending = null; return; }
+    if (Math.hypot(dx, dy) < threshold) {
+      pending = null;
+      opts.onDragEnd?.();
+      return;
+    }
 
     const move = resolveDragToMove(camera, pending, dx, dy);
     pending = null;
+    opts.onDragEnd?.();
     if (move && animator.enqueue(move)) opts.onMove?.(move);
   }
 
   function onPointerCancel(): void {
     setPreview(null, 0);
+    lastDirKey = null;
     pending = null;
+    opts.onDragEnd?.();
   }
 
   domEl.addEventListener('pointerdown', onPointerDown);

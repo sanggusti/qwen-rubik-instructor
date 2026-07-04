@@ -88,61 +88,6 @@
   {/each}
 </div>
 
-<div class="lsn-detail">
-  {#if snapshot.lesson === null}
-    <p class="lsn-hint">Pick a lesson above to begin.</p>
-  {:else}
-    {@const { lesson, step, stepIndex, stepCount, stepCompleted, lessonCompleted, coachingMessages } = snapshot}
-    <h4 class="lsn-title">{lesson.title}</h4>
-    <p class="lsn-audience">{lesson.audience}</p>
-    <p class="lsn-desc">{lesson.description}</p>
-    <div class="lsn-counter">Step {stepIndex + 1} of {stepCount}</div>
-    <h5 class="lsn-step-title">{step.title}</h5>
-    <p class="lsn-step-body">{step.body}</p>
-    {#if step.expectedMoves?.length}
-      <div class="lsn-moves">Moves: {step.expectedMoves.join(' ')}</div>
-    {/if}
-    <div class="lsn-status" class:done={stepCompleted}>
-      {stepCompleted ? (lessonCompleted ? 'Lesson complete ✓' : 'Step complete ✓') : 'In progress'}
-    </div>
-
-    {#if coachingMessages.length}
-      <div class="lsn-coaching">
-        {#each coachingMessages as message, i (i)}
-          <div class="lsn-coaching-item {message.kind}">
-            <strong>{message.title}</strong>
-            <p>{message.body}</p>
-          </div>
-        {/each}
-      </div>
-    {/if}
-
-    <div class="lsn-actions">
-      {#if step.setupMoves?.length}
-        <button type="button" class="lsn-btn" onclick={() => lessonStore.applySetupMoves()}>Set up step</button>
-      {/if}
-      {#if step.expectedMoves?.length}
-        <button type="button" class="lsn-btn" onclick={() => { lessonStore.showDemo(); onSelect?.(); }}>Show me how</button>
-        <button type="button" class="lsn-btn" onclick={() => lessonStore.applyExampleMoves()}>Apply example moves</button>
-      {/if}
-      <button
-        type="button"
-        class="lsn-btn"
-        class:emphasis={coachingMessages.some((m) => m.kind === 'mistake')}
-        onclick={() => lessonStore.backToCheckpoint()}
-      >Back to checkpoint</button>
-      {#if step.validator.type === 'manual' && !stepCompleted}
-        <button type="button" class="lsn-btn" onclick={() => lessonStore.markComplete()}>Mark complete</button>
-      {/if}
-    </div>
-
-    <div class="lsn-actions">
-      <button type="button" class="lsn-btn" disabled={stepIndex === 0} onclick={() => lessonStore.previous()}>Previous</button>
-      <button type="button" class="lsn-btn" disabled={stepIndex >= stepCount - 1} onclick={() => lessonStore.next()}>Next</button>
-      <button type="button" class="lsn-btn" onclick={() => lessonStore.resetLesson()}>Reset lesson</button>
-    </div>
-  {/if}
-</div>
 
 <style>
   h3 {
@@ -193,59 +138,9 @@
   .lsn-item {
     text-align: left;
   }
-  .lsn-detail {
-    border-top: 1px solid var(--panel-border);
-    padding-top: 10px;
-  }
   .lsn-hint {
     color: var(--text-dim);
     margin: 4px 0;
-  }
-  .lsn-title {
-    margin: 0 0 4px;
-    font-size: 13px;
-  }
-  .lsn-audience {
-    margin: 0 0 6px;
-    color: var(--text-dim);
-    font-size: 11px;
-    font-style: italic;
-  }
-  .lsn-desc {
-    margin: 0 0 8px;
-    color: var(--text-dim);
-  }
-  .lsn-counter {
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--accent-a);
-    margin-bottom: 4px;
-  }
-  .lsn-step-title {
-    margin: 0 0 4px;
-    font-size: 12px;
-  }
-  .lsn-step-body {
-    margin: 0 0 8px;
-  }
-  .lsn-moves {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px;
-    background: rgba(0, 0, 0, 0.28);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 7px;
-    padding: 6px 8px;
-    margin-bottom: 8px;
-  }
-  .lsn-status {
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-bottom: 10px;
-  }
-  .lsn-status.done {
-    color: var(--ok);
-    text-shadow: 0 0 10px var(--ok-dim);
   }
   .lsn-actions {
     display: flex;
@@ -256,41 +151,5 @@
   .lsn-btn:disabled {
     opacity: 0.4;
     cursor: default;
-  }
-  .lsn-btn.emphasis {
-    border-color: var(--accent-b);
-    color: var(--accent-b);
-    box-shadow: 0 0 12px var(--accent-b-dim);
-  }
-  .lsn-coaching {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-  .lsn-coaching-item {
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    padding: 7px 8px;
-    background: rgba(255, 255, 255, 0.04);
-  }
-  .lsn-coaching-item strong {
-    display: block;
-    margin-bottom: 3px;
-    font-size: 11px;
-    color: var(--accent-a);
-  }
-  .lsn-coaching-item p {
-    margin: 0;
-    color: var(--text-dim);
-  }
-  .lsn-coaching-item.mistake {
-    border-color: var(--no-dim);
-  }
-  .lsn-coaching-item.mistake strong {
-    color: var(--no);
-  }
-  .lsn-coaching-item.recommendation strong {
-    color: var(--ok);
   }
 </style>

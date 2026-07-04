@@ -7,16 +7,10 @@
   import { profileStore } from '../stores/profile.svelte';
   import { askQwen } from '../api/narrate';
 
-  // On touch devices the open keypad occupies the caption's mobile spot at the
-  // bottom of the screen; `raised` lifts the caption above it so the learner
-  // can read the step and tap moves at the same time.
   let { raised = false }: { raised?: boolean } = $props();
 
   type Owner = 'lesson' | 'practice' | 'walkthrough';
 
-  // Only one experience owns the caption at a time (closeOthers in +page.svelte
-  // guarantees at most one of these snapshots is non-null), so priority here
-  // only matters for the instant in between a switch.
   const active = $derived.by((): { owner: Owner; title: string; body: string; move: string | null; stream: boolean } | null => {
     const lesson = lessonStore.snapshot;
     if (lesson.lesson) {
@@ -40,18 +34,10 @@
   let displayedBody = $state('');
   let lastKey = '';
 
-  // Manual lesson steps tell the learner to "press Mark complete", so the
-  // button has to live here on the caption — the Lessons panel is closed.
-  const showMarkComplete = $derived.by(() => {
-    const s = lessonStore.snapshot;
-    return s.lesson !== null && s.step.validator.type === 'manual' && !s.stepCompleted;
-  });
-
   let question = $state('');
   let asking = $state(false);
   let answer = $state('');
 
-  // Ask Qwen a free-form question, grounded in the current step and cube state.
   async function ask(ev: SubmitEvent): Promise<void> {
     ev.preventDefault();
     const q = question.trim();
@@ -73,8 +59,7 @@
   }
 
   // Stream walkthrough narration in (typewriter); other owners' text is set
-  // immediately. Re-emits with the same (owner, text) — e.g. play/pause —
-  // don't restart the stream.
+  // immediately. Lesson branch renders directly from snapshot — skip streaming.
   $effect(() => {
     const a = active;
     if (!a) {
@@ -83,6 +68,7 @@
       answer = '';
       return;
     }
+    if (a.owner === 'lesson') return;
     const key = `${a.owner}:${a.body}`;
     if (key === lastKey) return;
     lastKey = key;
@@ -93,9 +79,6 @@
     }
     displayedBody = '';
     let i = 0;
-    // The effect re-runs on every store emit (e.g. per-move progress), so the
-    // chain must survive re-runs: it self-terminates when a newer caption
-    // takes over instead of being torn down (which froze text mid-sentence).
     const step = (): void => {
       if (lastKey !== key) return;
       i = Math.min(a.body.length, i + 1);
@@ -114,16 +97,63 @@
 </script>
 
 {#if active}
-  <div class="stage is-open" class:demo-open={demoStore.open} class:raised>
+  <div class="stage is-open" class:demo-open={demoStore.open} class:raised class:lesson-owner={active.owner === 'lesson'}>
     <button class="stage-close" type="button" aria-label="End" onclick={close}>×</button>
     <div class="stage-title">{active.title}</div>
-    <p class="stage-body">{displayedBody}</p>
-    {#if active.move}
-      <div class="stage-move">{active.move}</div>
+
+    {#if active.owner === 'lesson'}
+      {@const snap = lessonStore.snapshot}
+      {#if snap.lesson}
+        <div class="stage-counter">Step {snap.stepIndex + 1} of {snap.stepCount}</div>
+        <h5 class="stage-step-title">{snap.step.title}</h5>
+        <p class="stage-body">{snap.step.body}</p>
+        {#if snap.step.expectedMoves?.length}
+          <div class="stage-move">{snap.step.expectedMoves.join(' ')}</div>
+        {/if}
+        <div class="stage-status" class:done={snap.stepCompleted}>
+          {snap.stepCompleted ? (snap.lessonCompleted ? 'Lesson complete ✓' : 'Step complete ✓') : 'In progress'}
+        </div>
+        {#if snap.coachingMessages.length}
+          <div class="stage-coaching">
+            {#each snap.coachingMessages as msg, i (i)}
+              <div class="stage-coaching-item {msg.kind}">
+                <strong>{msg.title}</strong>
+                <p>{msg.body}</p>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        <div class="stage-actions">
+          {#if snap.step.setupMoves?.length}
+            <button type="button" class="stage-btn" onclick={() => lessonStore.applySetupMoves()}>Set up step</button>
+          {/if}
+          {#if snap.step.expectedMoves?.length}
+            <button type="button" class="stage-btn" onclick={() => lessonStore.showDemo()}>Show me how</button>
+            <button type="button" class="stage-btn" onclick={() => lessonStore.applyExampleMoves()}>Apply example moves</button>
+          {/if}
+          <button
+            type="button"
+            class="stage-btn"
+            class:emphasis={snap.coachingMessages.some((m) => m.kind === 'mistake')}
+            onclick={() => lessonStore.backToCheckpoint()}
+          >Back to checkpoint</button>
+          {#if snap.step.validator.type === 'manual' && !snap.stepCompleted}
+            <button type="button" class="stage-btn" onclick={() => lessonStore.markComplete()}>Mark complete</button>
+          {/if}
+        </div>
+        <div class="stage-actions">
+          <button type="button" class="stage-btn" disabled={snap.stepIndex === 0} onclick={() => lessonStore.previous()}>Previous</button>
+          <button type="button" class="stage-btn" disabled={snap.stepIndex >= snap.stepCount - 1} onclick={() => lessonStore.next()}>Next</button>
+          <button type="button" class="stage-btn" onclick={() => lessonStore.resetLesson()}>Reset lesson</button>
+        </div>
+      {/if}
+    {:else}
+      <p class="stage-body">{displayedBody}</p>
+      {#if active.move}
+        <div class="stage-move">{active.move}</div>
+      {/if}
     {/if}
-    {#if showMarkComplete}
-      <button class="stage-btn" type="button" onclick={() => lessonStore.markComplete()}>Mark complete</button>
-    {/if}
+
     <form class="stage-ask" onsubmit={ask}>
       <input
         class="stage-ask-input"
@@ -159,6 +189,9 @@
     border: 1px solid var(--panel-border);
     backdrop-filter: blur(14px) saturate(140%);
   }
+  .stage.lesson-owner {
+    max-height: 80vh;
+  }
   .stage::-webkit-scrollbar {
     width: 6px;
   }
@@ -191,15 +224,30 @@
     margin-bottom: 10px;
     padding-right: 18px;
   }
+  .stage-counter {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-a);
+    margin-bottom: 4px;
+  }
+  .stage-step-title {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
   .stage-body {
     margin: 0;
     font-size: 15px;
     line-height: 1.65;
-    min-height: 4.5em;
+    min-height: 2em;
     white-space: pre-line;
+    margin-bottom: 8px;
   }
   .stage-move {
-    margin-top: 10px;
+    margin-top: 6px;
+    margin-bottom: 8px;
     display: inline-block;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 18px;
@@ -211,12 +259,56 @@
     padding: 3px 10px;
     box-shadow: 0 0 12px var(--accent-b-dim);
   }
-
+  .stage-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .stage-status.done {
+    color: var(--ok);
+    text-shadow: 0 0 10px var(--ok-dim);
+  }
+  .stage-coaching {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .stage-coaching-item {
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 7px 8px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .stage-coaching-item strong {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    color: var(--accent-a);
+  }
+  .stage-coaching-item p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .stage-coaching-item.mistake {
+    border-color: var(--no-dim);
+  }
+  .stage-coaching-item.mistake strong {
+    color: var(--no);
+  }
+  .stage-coaching-item.recommendation strong {
+    color: var(--ok);
+  }
+  .stage-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
   .stage-btn {
     appearance: none;
     cursor: pointer;
-    display: block;
-    margin-top: 10px;
     font-family: inherit;
     font-size: 12px;
     color: var(--accent-b);
@@ -226,7 +318,15 @@
     padding: 6px 12px;
     transition: box-shadow 0.15s ease;
   }
-  .stage-btn:hover {
+  .stage-btn:hover:not(:disabled) {
+    box-shadow: 0 0 12px var(--accent-b-dim);
+  }
+  .stage-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .stage-btn.emphasis {
+    border-color: var(--accent-b);
     box-shadow: 0 0 12px var(--accent-b-dim);
   }
   .stage-ask {
@@ -277,8 +377,7 @@
     white-space: pre-line;
   }
 
-  /* While the demo window is docked on the right, drop the caption to the bottom
-     of the free space on the left (under the shifted cube) so it isn't covered. */
+  /* Desktop: demo window docked on the right — avoid overlap */
   .stage.demo-open {
     top: auto;
     bottom: 20px;
@@ -292,24 +391,27 @@
   }
 
   @media (max-width: 760px) {
+    /* Full-width bottom sheet on mobile */
     .stage {
       top: auto;
-      bottom: calc(64px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(92vw, 440px);
-      max-height: 30vh;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transform: none;
+      width: auto;
+      max-height: 40vh;
+      border-radius: 16px 16px 0 0;
+      border-bottom: none;
     }
-    /* Clear the open touch keypad (~210px tall, anchored just above the
-       quick actions). Declared before .demo-open so that placement wins. */
+    .stage.lesson-owner {
+      max-height: 50vh;
+    }
+    /* Sit above the full-width keypad bar (~162px) */
     .stage.raised {
-      bottom: calc(300px + env(safe-area-inset-bottom));
-      /* There's more headroom above the keypad than at the screen edge — let
-         the caption grow upward so step text, button, and ask input all fit. */
+      bottom: calc(162px + env(safe-area-inset-bottom));
       max-height: 38vh;
     }
-    /* Mobile demo is a bottom sheet, so tuck the caption top-right — below the
-       top-left Guide toggle and above the sheet. */
+    /* Mobile demo is a bottom sheet — tuck caption top-right */
     .stage.demo-open {
       top: calc(env(safe-area-inset-top) + 80px);
       bottom: auto;
@@ -317,6 +419,8 @@
       right: 10px;
       transform: none;
       width: min(72vw, 320px);
+      border-radius: 16px;
+      border-bottom: revert;
       max-width: none;
       margin: 0;
       max-height: 17vh;

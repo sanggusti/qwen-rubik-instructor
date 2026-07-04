@@ -24,12 +24,23 @@
     if (keep !== 'walkthrough') walkthroughStore.close();
   }
 
-  // Hidden by default on touch devices; HudBar's "Keypad" button reveals it.
+  // HudBar's "Keypad" button reveals the full-width bottom keypad.
   let keypadOpen = $state(false);
 
   // Keyboard shortcuts mean nothing on a touch device — point at the keypad.
   const isCoarsePointer =
     typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+  // True when the stage caption (lesson/drill/walkthrough) is active.
+  const stageVisible = $derived(
+    lessonStore.snapshot.lesson !== null ||
+    practiceStore.snapshot.drill !== null ||
+    walkthroughStore.snapshot.walkthrough !== null
+  );
+
+  // On mobile: shrink the canvas to the top portion when the stage caption is
+  // visible so the bottom panels (stage + keypad) don't overlap the cube.
+  const cubeShiftUp = $derived(stageVisible);
 
   // First-visit controls hint: nothing else on this screen says how to turn
   // the cube. Gone after the first completed move or once a lesson/drill/
@@ -45,11 +56,11 @@
   );
 </script>
 
-<CubeCanvas>
+<CubeCanvas shiftUp={cubeShiftUp}>
   <CubeMesh />
 </CubeCanvas>
 
-<TouchMovePad open={keypadOpen} />
+<TouchMovePad open={keypadOpen} onClose={() => (keypadOpen = false)} />
 <StageCaption raised={keypadOpen} />
 <DemoCubeWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} />

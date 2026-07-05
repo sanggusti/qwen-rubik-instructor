@@ -9,6 +9,9 @@ interface PendingDrag {
   hitFace: FaceKey;
   hitCubie: Cubie;
   hitWorldPoint: THREE.Vector3;
+  // Trails the cursor by ANCHOR_WINDOW px so move direction follows the recent
+  // swipe rather than the total displacement from start (last-direction wins).
+  dirAnchor: THREE.Vector2;
 }
 
 export interface DragOptions {
@@ -38,6 +41,9 @@ export function attachDragControls(
 ): () => void {
   const threshold = opts.threshold ?? 14;
   const previewThreshold = opts.previewThreshold ?? 6;
+  // Recent-direction window: the anchor trails the cursor by this many px so
+  // that direction at release reflects the last swipe, not the total vector.
+  const ANCHOR_WINDOW = 40;
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   let pending: PendingDrag | null = null;
@@ -84,23 +90,34 @@ export function attachDragControls(
     return { face, point: hit.point.clone(), cubie };
   }
 
+  // Returns true if the current ndc ray hits within the cube's bounding sphere
+  // expanded by 20%, providing a tolerance zone for near-edge drags.
+  function isNearCube(): boolean {
+    raycaster.setFromCamera(ndc, camera);
+    const radius = 1.5 * Math.sqrt(3) * cube.root.scale.x * 1.2;
+    return raycaster.ray.intersectsSphere(new THREE.Sphere(cube.root.position, radius));
+  }
+
   // Tracks the last emitted direction key to avoid firing onDragDirection on every
   // pointermove when nothing has changed (face and direction stay the same).
   let lastDirKey: string | null = null;
 
   function onPointerDown(ev: PointerEvent): void {
-    if (animator.isBusy()) return;
     ndcFromEvent(ev);
     const hit = findStickerHit();
     if (!hit) return;
-    // Claim the gesture so it doesn't also reach OrbitControls (listening on an
-    // ancestor element) and orbit the camera while a face-turn drag is in progress.
-    ev.stopPropagation();
+    // Claim the gesture before OrbitControls' bubble-phase handler runs.
+    // stopImmediatePropagation prevents OrbitControls from ever seeing the
+    // pointerdown, so it never adds its pointermove/pointerup listeners to
+    // document and the camera stays still during face-turn drags.
+    ev.stopImmediatePropagation();
+    if (animator.isBusy()) return;
     pending = {
       startScreen: new THREE.Vector2(ev.clientX, ev.clientY),
       hitFace: hit.face,
       hitCubie: hit.cubie,
-      hitWorldPoint: hit.point
+      hitWorldPoint: hit.point,
+      dirAnchor: new THREE.Vector2(ev.clientX, ev.clientY)
     };
     lastDirKey = null;
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
@@ -109,9 +126,28 @@ export function attachDragControls(
 
   function onPointerMove(ev: PointerEvent): void {
     if (!pending) return;
-    const dx = ev.clientX - pending.startScreen.x;
-    const dy = ev.clientY - pending.startScreen.y;
-    if (Math.hypot(dx, dy) < previewThreshold) { setPreview(null, 0); return; }
+
+    // Clear the highlight when the pointer leaves the tolerance zone.
+    ndcFromEvent(ev);
+    if (!isNearCube()) { setPreview(null, 0); return; }
+
+    // Advance the anchor so it trails the cursor by at most ANCHOR_WINDOW px.
+    const fromAnchorDx = ev.clientX - pending.dirAnchor.x;
+    const fromAnchorDy = ev.clientY - pending.dirAnchor.y;
+    const fromAnchorLen = Math.hypot(fromAnchorDx, fromAnchorDy);
+    if (fromAnchorLen > ANCHOR_WINDOW) {
+      pending.dirAnchor.x = ev.clientX - (fromAnchorDx / fromAnchorLen) * ANCHOR_WINDOW;
+      pending.dirAnchor.y = ev.clientY - (fromAnchorDy / fromAnchorLen) * ANCHOR_WINDOW;
+    }
+
+    // Gate the preview on total travel from start, but resolve axis/direction
+    // from the recent vector (anchor → current) so it follows the last swipe.
+    const totalDx = ev.clientX - pending.startScreen.x;
+    const totalDy = ev.clientY - pending.startScreen.y;
+    if (Math.hypot(totalDx, totalDy) < previewThreshold) { setPreview(null, 0); return; }
+
+    const dx = ev.clientX - pending.dirAnchor.x;
+    const dy = ev.clientY - pending.dirAnchor.y;
     const result = resolveAxisSlice(camera, pending, dx, dy);
     setPreview(result?.axis ?? null, result?.slice ?? 0);
     if (result) {
@@ -138,13 +174,30 @@ export function attachDragControls(
     if (!pending) return;
     setPreview(null, 0);
     lastDirKey = null;
-    const dx = ev.clientX - pending.startScreen.x;
-    const dy = ev.clientY - pending.startScreen.y;
-    if (Math.hypot(dx, dy) < threshold) {
+
+    // Cancel if the pointer released outside the cube (plus 20% tolerance).
+    ndcFromEvent(ev);
+    if (!isNearCube()) {
       pending = null;
       opts.onDragEnd?.();
       return;
     }
+
+    // Cancel if total travel from start is below threshold.
+    const totalDx = ev.clientX - pending.startScreen.x;
+    const totalDy = ev.clientY - pending.startScreen.y;
+    if (Math.hypot(totalDx, totalDy) < threshold) {
+      pending = null;
+      opts.onDragEnd?.();
+      return;
+    }
+
+    // Prefer the recent direction (anchor → release point); fall back to total
+    // displacement if the anchor hasn't moved far enough to be meaningful.
+    const recentDx = ev.clientX - pending.dirAnchor.x;
+    const recentDy = ev.clientY - pending.dirAnchor.y;
+    const dx = Math.hypot(recentDx, recentDy) > threshold ? recentDx : totalDx;
+    const dy = Math.hypot(recentDx, recentDy) > threshold ? recentDy : totalDy;
 
     const move = resolveDragToMove(camera, pending, dx, dy);
     pending = null;
@@ -159,12 +212,14 @@ export function attachDragControls(
     opts.onDragEnd?.();
   }
 
-  domEl.addEventListener('pointerdown', onPointerDown);
+  // Use capture phase so this runs before OrbitControls' bubble-phase listener
+  // on the same canvas element, allowing stopImmediatePropagation to fully block it.
+  domEl.addEventListener('pointerdown', onPointerDown, { capture: true });
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('pointercancel', onPointerCancel);
   return () => {
-    domEl.removeEventListener('pointerdown', onPointerDown);
+    domEl.removeEventListener('pointerdown', onPointerDown, { capture: true });
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('pointercancel', onPointerCancel);

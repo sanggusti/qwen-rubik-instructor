@@ -6,8 +6,10 @@
   import ExplorePanel from '../panels/ExplorePanel.svelte';
   import DebuggerPanel from '../panels/DebuggerPanel.svelte';
   import LevelPanel from '../panels/LevelPanel.svelte';
+  import ChallengeButton from './ChallengeButton.svelte';
   import { cubeStore } from '../stores/cube.svelte';
   import { demoStore } from '../stores/demo.svelte';
+  import { challengeStore, formatChallengeTime } from '../stores/challenge.svelte';
 
   type ExperienceKeep = 'lesson' | 'practice' | 'walkthrough' | 'none';
   type TabId = 'lessons' | 'practice' | 'explore' | 'debugger' | 'level';
@@ -18,9 +20,16 @@
   let {
     onOpenExperience,
     keypadOpen,
-    onToggleKeypad
-  }: { onOpenExperience: (keep: ExperienceKeep) => void; keypadOpen: boolean; onToggleKeypad: () => void } =
-    $props();
+    onToggleKeypad,
+    onChallenge,
+    onGiveUp
+  }: {
+    onOpenExperience: (keep: ExperienceKeep) => void;
+    keypadOpen: boolean;
+    onToggleKeypad: () => void;
+    onChallenge: () => void;
+    onGiveUp: () => void;
+  } = $props();
 
   const TABS: { id: TabId; label: string; keep: ExperienceKeep }[] = [
     { id: 'lessons', label: 'Lessons', keep: 'lesson' },
@@ -57,23 +66,42 @@
   function closeModal(): void {
     activeId = null;
   }
+
+  // During a live run the rail is just the clock + an escape hatch: Guide,
+  // Scramble and Reset hide (they'd cancel the run anyway) and "Give Up!"
+  // takes their place.
+  const challengeActive = $derived(
+    challengeStore.status === 'scrambling' || challengeStore.status === 'running'
+  );
+
+  function giveUp(): void {
+    onGiveUp();
+  }
 </script>
 
 <div class="guide">
   <div class="rail">
-    <button type="button" class="guide-toggle" class:is-active={dockOpen} aria-label="Guide" aria-expanded={dockOpen} onclick={toggleDock}>
-      <span class="icon" aria-hidden="true">📖</span>
-      <span class="label">Guide</span>
-    </button>
-    {#if !keypadOpen}
-      <div class="quick-actions">
-        <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
-        <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>
-      </div>
+    {#if challengeStore.status !== 'idle'}
+      <div class="challenge-timer">{formatChallengeTime(challengeStore.elapsedMs)}</div>
+    {/if}
+    {#if challengeActive}
+      <button type="button" class="dock-action give-up" onclick={giveUp}>Give Up!</button>
+    {:else}
+      <ChallengeButton layout="desktop" onclick={onChallenge} />
+      <button type="button" class="guide-toggle" class:is-active={dockOpen} aria-label="Guide" aria-expanded={dockOpen} onclick={toggleDock}>
+        <span class="icon" aria-hidden="true">📖</span>
+        <span class="label">Guide</span>
+      </button>
+      {#if !keypadOpen && challengeStore.status === 'idle'}
+        <div class="quick-actions">
+          <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
+          <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>
+        </div>
+      {/if}
     {/if}
   </div>
 
-  {#if dockOpen}
+  {#if dockOpen && !challengeActive}
     <div class="dock">
       <div class="dock-tabs">
         {#each TABS as tab (tab.id)}
@@ -145,6 +173,18 @@
     flex-direction: column;
     gap: 10px;
   }
+  .challenge-timer {
+    padding: 8px 10px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    color: var(--accent-y);
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-y-dim);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
   .quick-actions {
     display: flex;
     flex-direction: column;
@@ -168,6 +208,13 @@
   .dock-action:hover {
     border-color: var(--accent-b-dim);
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-b-dim);
+  }
+  .give-up {
+    color: var(--accent-y-2);
+  }
+  .give-up:hover {
+    border-color: var(--accent-y-dim);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4), 0 0 18px var(--accent-y-dim);
   }
   .guide-toggle {
     appearance: none;

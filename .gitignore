@@ -223,3 +223,5 @@ node_modules/
 .playwright-mcp/
 # Local libSQL database files
 backend/data/
+
+.claude/settings.json

@@ -1,0 +1,88 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="narr-seq" name="Narration Sequence">
+    <mxGraphModel dx="1000" dy="700" grid="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="&quot;Solve my cube (Qwen)&quot; — SSE narration flow" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="700" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lc" value="SvelteKit client&#10;(api/narrate.ts)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=13;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="lf" value="FastAPI&#10;/narrate/*" style="rounded=1;whiteSpace=wrap;html=1;fontSize=13;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="380" y="80" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="lp" value="Planner + LBL solver&#10;(deterministic)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=13;fontStyle=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="700" y="80" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="ln" value="Narrator + validator&#10;(llm_narrator.py)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=13;fontStyle=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="80" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="lq" value="Qwen&#10;(DashScope)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=13;fontStyle=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="80" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="llc" style="endArrow=none;dashed=1;html=1;strokeColor=#6c8ebf;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="150" y="130" as="sourcePoint"/><mxPoint x="150" y="940" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="llf" style="endArrow=none;dashed=1;html=1;strokeColor=#9673a6;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="130" as="sourcePoint"/><mxPoint x="470" y="940" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="llp" style="endArrow=none;dashed=1;html=1;strokeColor=#82b366;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="790" y="130" as="sourcePoint"/><mxPoint x="790" y="940" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="lln" style="endArrow=none;dashed=1;html=1;strokeColor=#d79b00;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="1110" y="130" as="sourcePoint"/><mxPoint x="1110" y="940" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="llq" style="endArrow=none;dashed=1;html=1;strokeColor=#d79b00;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="1430" y="130" as="sourcePoint"/><mxPoint x="1430" y="940" as="targetPoint"/></mxGeometry>
+        </mxCell>
+
+        <mxCell id="m1" value="POST /narrate/walkthrough {facelets, level, memoryDigest}" style="html=1;fontSize=12;endArrow=block;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="150" y="180" as="sourcePoint"/><mxPoint x="470" y="180" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="m2" value="plan(kind, state)" style="html=1;fontSize=12;endArrow=block;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="230" as="sourcePoint"/><mxPoint x="790" y="230" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="m3" value="solve → stages → VisualPlan (frames with exact moves);&#10;solution replayed on own engine, asserted solved" style="html=1;fontSize=12;endArrow=block;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="790" y="300" as="sourcePoint"/><mxPoint x="470" y="300" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="m4" value="SSE event: meta {title, frameCount, …}" style="html=1;fontSize=12;endArrow=block;dashed=1;strokeColor=#0066cc;fontColor=#0066cc;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="350" as="sourcePoint"/><mxPoint x="150" y="350" as="targetPoint"/></mxGeometry>
+        </mxCell>
+
+        <mxCell id="loop" value="per frame — ThreadPool, 6 concurrent workers" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;align=left;spacingLeft=8;fontSize=12;fontStyle=2;fillColor=none;strokeColor=#666666;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="390" width="1140" height="360" as="geometry"/>
+        </mxCell>
+        <mxCell id="m5" value="narrate_frame(frame, memory digest ≤ 240 chars)" style="html=1;fontSize=12;endArrow=block;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="440" as="sourcePoint"/><mxPoint x="1110" y="440" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="m6" value="chat.completions (json_object, style budget by level)" style="html=1;fontSize=12;endArrow=block;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="1110" y="490" as="sourcePoint"/><mxPoint x="1430" y="490" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="m7" value="JSON narration" style="html=1;fontSize=12;endArrow=block;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="1430" y="540" as="sourcePoint"/><mxPoint x="1110" y="540" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="v1" value="validate_narration:&#10;every move mentioned must exist in the frame&#10;fail ⇒ deterministic fallback_narration" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="960" y="580" width="300" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="m8" value="beat_from / step_from (merge)" style="html=1;fontSize=12;endArrow=block;dashed=1;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="1110" y="680" as="sourcePoint"/><mxPoint x="470" y="680" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="m9" value="SSE event: beat/step {index, fallback, narration}" style="html=1;fontSize=12;endArrow=block;dashed=1;strokeColor=#0066cc;fontColor=#0066cc;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="720" as="sourcePoint"/><mxPoint x="150" y="720" as="targetPoint"/></mxGeometry>
+        </mxCell>
+
+        <mxCell id="m10" value="SSE event: done" style="html=1;fontSize=12;endArrow=block;dashed=1;strokeColor=#0066cc;fontColor=#0066cc;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry"><mxPoint x="470" y="800" as="sourcePoint"/><mxPoint x="150" y="800" as="targetPoint"/></mxGeometry>
+        </mxCell>
+        <mxCell id="n1" value="Client renders beats as they stream: demo cube window animates moves,&#10;captions pace the animation. Qwen may only phrase the plan — never invent moves." style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="850" width="560" height="70" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

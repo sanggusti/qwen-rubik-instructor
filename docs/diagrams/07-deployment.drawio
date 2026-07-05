@@ -1,0 +1,62 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="deploy" name="Deployment">
+    <mxGraphModel dx="1000" dy="700" grid="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="920" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="Deployment — one box, three containers (Alibaba Cloud)" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="800" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="user" value="Visitor" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="60" y="180" width="50" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="dns" value="DNS&#10;rubik.suryatresna.asia&#10;api rubik.suryatresna.asia" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="160" y="190" width="200" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="sas" value="Alibaba Cloud Simple Application Server (2 vCPU) — docker compose" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=14;fontStyle=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="460" y="100" width="760" height="680" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="caddy" value="caddy (caddy:alpine)&#10;ports 80/443 — the only published ports&#10;automatic TLS certificates&#10;config injected inline via compose configs" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="sas">
+          <mxGeometry x="40" y="50" width="300" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="fe" value="frontend&#10;node:22-alpine (vite build)&#10;→ nginx:alpine static build on :80&#10;build arg PUBLIC_BACKEND_URL=https://api${DOMAIN}" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="sas">
+          <mxGeometry x="40" y="230" width="300" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="be" value="backend&#10;multi-stage python:3.12-slim + venv&#10;uvicorn main:app on :8000 (not published)&#10;env: DASHSCOPE_API_KEY, CORS, TURSO_*" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="sas">
+          <mxGeometry x="40" y="410" width="300" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="vols" value="named volumes&#10;caddy_data · caddy_config · db_data (/app/data)" style="shape=cylinder3;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#666666;boundedLbl=1;" vertex="1" parent="sas">
+          <mxGeometry x="40" y="570" width="300" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="route1" value="Caddy routes&#10;${DOMAIN} → frontend:80&#10;api${DOMAIN} → backend:8000&#10;(no-dot api${DOMAIN} quirk, see docs/15)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="sas">
+          <mxGeometry x="440" y="50" width="280" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="gap" value="Known gaps (docs/15):&#10;· GOOGLE_CLIENT_ID/SECRET + FRONTEND_URL / BACKEND_URL not yet wired into compose ⇒ challenge mode 503 in prod until added&#10;· root Caddyfile is dead config — compose uses its own inline version" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="sas">
+          <mxGeometry x="440" y="180" width="280" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="pipe" value="Deploy pipeline&#10;git tag → build/push images&#10;→ ssh: docker compose pull &amp;&amp; up -d" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#666666;dashed=1;" vertex="1" parent="sas">
+          <mxGeometry x="440" y="550" width="280" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="qwen" value="DashScope&#10;(Qwen, intl endpoint)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=13;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="430" width="220" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="turso" value="Turso cloud (libsql://)&#10;or db_data local file" style="shape=cylinder3;whiteSpace=wrap;html=1;fontSize=13;fillColor=#f8cecc;strokeColor=#b85450;boundedLbl=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="560" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;" edge="1" parent="1" source="user" target="dns"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="https 443" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="dns" target="caddy"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="reverse proxy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="sas" source="caddy" target="fe"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="reverse proxy" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="sas" source="caddy" target="be"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="sas" source="be" target="vols"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="narration" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=1;exitY=0.55;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="be" target="qwen"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" value="persistence" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=12;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="be" target="turso"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

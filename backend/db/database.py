@@ -99,3 +99,12 @@ def query(sql: str, params: tuple = ()) -> list[tuple]:
     with _lock:
         assert _conn is not None
         return _conn.execute(sql, params).fetchall()
+
+
+def query_write(sql: str, params: tuple = ()) -> list[tuple]:
+    """Run a DML statement that returns rows (e.g. UPDATE … RETURNING) and commit."""
+    with _lock:
+        assert _conn is not None
+        result = _conn.execute(sql, params).fetchall()
+        _conn.commit()
+        return result

@@ -5,11 +5,14 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+BACKEND_DIR = Path(__file__).resolve().parent
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=[REPO_ROOT / ".env", BACKEND_DIR / ".env"],
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     dashscope_api_key: str = ""
@@ -23,11 +26,20 @@ class Settings(BaseSettings):
     qwen_timeout_s: float = 20.0
     # How many frames to narrate concurrently (frames are independent LLM calls).
     narration_workers: int = 6
-    # Turso/libSQL persistence. Empty URL disables persistence entirely (the
-    # backend stays stateless, mirroring the empty-DASHSCOPE_API_KEY fallback).
-    # Local file path for dev (e.g. backend/data/rubik.db) or a libsql:// URL.
-    turso_database_url: str = ""
+    # Turso/libSQL persistence. Local file path for dev or a libsql:// URL.
+    turso_database_url: str = "data/rubik.db"
     turso_auth_token: str = ""
+    # Google OAuth for the challenge-mode leaderboard. Empty client id leaves
+    # /auth endpoints returning 503 (same spirit as the empty-URL kill switch).
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    frontend_url: str = "http://localhost:5173"
+    # Public base URL of this backend; must match the redirect URI whitelisted
+    # in the Google Cloud Console OAuth client ({backend_url}/auth/callback).
+    backend_url: str = "http://localhost:8000"
+    # Show "give_up" entries in the challenge leaderboard (default: show).
+    # Set LEADERBOARD_SHOW_GIVE_UP=false in .env to hide them globally.
+    leaderboard_show_give_up: bool = True
 
 
 settings = Settings()

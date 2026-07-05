@@ -36,9 +36,10 @@ def test_migrations_create_tables_and_are_idempotent(tmp_path):
     assert database.init(path)  # re-init applies nothing new
     tables = {r[0] for r in database.query(
         "SELECT name FROM sqlite_master WHERE type='table'")}
-    assert {"users", "sessions", "stage_stats", "solve_attempts", "schema_migrations"} <= tables
+    assert {"users", "sessions", "stage_stats", "solve_attempts", "schema_migrations",
+            "members", "auth_tokens", "challenge_scores"} <= tables
     versions = database.query("SELECT version FROM schema_migrations")
-    assert versions == [(1,)]
+    assert versions == [(1,), (2,)]
 
 
 def test_init_empty_url_disables(temp_db):

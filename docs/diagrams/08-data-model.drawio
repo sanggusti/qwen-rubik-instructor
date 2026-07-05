@@ -1,0 +1,56 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="er" name="Data Model">
+    <mxGraphModel dx="1000" dy="700" grid="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="Data model — 8 tables, 4 migrations (Turso / libSQL)" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="700" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="anon" value="Anonymous learner memory (0001_init) — id = client-generated UUID, no auth" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="700" height="560" as="geometry"/>
+        </mxCell>
+        <mxCell id="users" value="&lt;b&gt;users&lt;/b&gt;&lt;br&gt;&lt;hr&gt;id TEXT PK (client sessionId)&lt;br&gt;handle · level · method&lt;br&gt;created_at · updated_at" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="anon">
+          <mxGeometry x="220" y="50" width="260" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="sessions" value="&lt;b&gt;sessions&lt;/b&gt;&lt;br&gt;&lt;hr&gt;id PK · user_id FK&lt;br&gt;kind · method · stages · at&lt;br&gt;(event log, replaced wholesale on sync)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="anon">
+          <mxGeometry x="30" y="230" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="stage_stats" value="&lt;b&gt;stage_stats&lt;/b&gt;&lt;br&gt;&lt;hr&gt;(user_id, stage) PK&lt;br&gt;label · attempts · mistakes · best_ms&lt;br&gt;last_at · mastered&lt;br&gt;(due-for-review derived, never stored)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="anon">
+          <mxGeometry x="370" y="230" width="300" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="attempts" value="&lt;b&gt;solve_attempts&lt;/b&gt;&lt;br&gt;&lt;hr&gt;id PK · user_id FK&lt;br&gt;drill_id · duration_ms · mistakes · at&lt;br&gt;(per-drill leaderboard = MIN per user)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="anon">
+          <mxGeometry x="200" y="410" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea1" value="1 : n" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="anon" source="users" target="sessions"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ea2" value="1 : n" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="anon" source="users" target="stage_stats"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ea3" value="1 : n" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=1;" edge="1" parent="anon" source="users" target="attempts"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="auth" value="Authenticated challenge mode (0002–0004) — id = Google sub" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=13;fontStyle=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="800" y="80" width="700" height="560" as="geometry"/>
+        </mxCell>
+        <mxCell id="members" value="&lt;b&gt;members&lt;/b&gt;&lt;br&gt;&lt;hr&gt;id TEXT PK (Google sub)&lt;br&gt;email · username UNIQUE&lt;br&gt;created_at" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="auth">
+          <mxGeometry x="220" y="50" width="260" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="tokens" value="&lt;b&gt;auth_tokens&lt;/b&gt;&lt;br&gt;&lt;hr&gt;token UUID PK · member_id FK&lt;br&gt;expires_at (30 days,&lt;br&gt;strftime-compared in SQL)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="auth">
+          <mxGeometry x="30" y="230" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="scores" value="&lt;b&gt;challenge_scores&lt;/b&gt;&lt;br&gt;&lt;hr&gt;id PK · member_id FK · username (denorm.)&lt;br&gt;solve_time_ms · scramble_length&lt;br&gt;status: solved | give_up (0004) · created_at" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="auth">
+          <mxGeometry x="370" y="230" width="300" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="csess" value="&lt;b&gt;challenge_sessions&lt;/b&gt; (0003, anti-cheat)&lt;br&gt;&lt;hr&gt;key UUID PK · member_id FK&lt;br&gt;started_at (server clock) · scramble_length&lt;br&gt;is_used · expires_at (+1 h)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=12;align=left;spacing=8;verticalAlign=top;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="auth">
+          <mxGeometry x="200" y="410" width="300" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="eb1" value="1 : n" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="auth" source="members" target="tokens"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eb2" value="1 : n" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="auth" source="members" target="scores"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eb3" value="1 : n" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;exitX=0.5;exitY=1;" edge="1" parent="auth" source="members" target="csess"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="note" value="users ∥ members are deliberately parallel identities — anonymous drill memory is never merged with the Google-authenticated challenge identity. schema_migrations tracks applied versions; db/database.py auto-applies numbered migrations at startup." style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="680" width="1460" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

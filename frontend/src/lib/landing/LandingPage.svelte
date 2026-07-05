@@ -3,6 +3,7 @@
   import HeroStage from './HeroStage.svelte';
   import ContentSection from './ContentSection.svelte';
   import ContributorsSection from './ContributorsSection.svelte';
+  import LeaderboardSection from './LeaderboardSection.svelte';
   import LandingFooter from './LandingFooter.svelte';
   import PlayButton from './PlayButton.svelte';
   import CountUp from './CountUp.svelte';
@@ -219,6 +220,8 @@
       <PlayButton label="Start solving →" {onPlay} />
     </div>
   </ContentSection>
+
+  <LeaderboardSection />
 
   <ContributorsSection />
   <LandingFooter />

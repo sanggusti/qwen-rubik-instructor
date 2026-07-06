@@ -42,8 +42,7 @@ test('the app stays playable and learnable offline', async ({ page }) => {
 	// Static lessons still open and validate real moves.
 	await openGuideTab(page, 'Lessons');
 	await page.locator('.lsn-item', { hasText: LESSON.title }).click();
-	await openGuideTab(page, 'Lessons');
-	await page.locator('.lsn-btn', { hasText: /^Mark complete$/ }).click();
+	await page.locator('.stage-btn', { hasText: /^Mark complete$/ }).click();
 	await pressMoves(page, LESSON.steps[1].expectedMoves!);
-	await expect(page.locator('.lsn-counter')).toHaveText(`Step 3 of ${LESSON.steps.length}`);
+	await expect(page.locator('.stage-counter')).toHaveText(`Step 3 of ${LESSON.steps.length}`);
 });

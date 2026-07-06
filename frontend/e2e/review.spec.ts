@@ -57,3 +57,32 @@ test('a Qwen solve is captured and replayable on /review', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Your coursepath' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Your practice' })).toBeVisible();
 });
+
+test('the tour can be played, paused and restarted', async ({ page }) => {
+	await gotoPlay(page);
+	await fastMoves(page);
+	await pressMoves(page, SCRAMBLE);
+	await openGuideTab(page, 'Explore');
+	await page.locator('.exp-btn', { hasText: 'Solve my cube (Qwen)' }).click();
+	const reviewBtn = page.locator('.demo-btn', { hasText: 'Review session' });
+	await expect(reviewBtn).toBeVisible({ timeout: 30_000 });
+	await reviewBtn.click();
+	await page.waitForURL('**/review');
+
+	const scrollTop = () => page.evaluate(() => document.querySelector('.review')!.scrollTop);
+
+	// Play auto-scrolls the tour.
+	await page.locator('.playback-btn', { hasText: 'Play' }).click();
+	await page.waitForFunction(() => document.querySelector('.review')!.scrollTop > 400);
+
+	// Pause freezes it.
+	await page.locator('.playback-btn', { hasText: 'Pause' }).click();
+	const paused = await scrollTop();
+	await page.waitForTimeout(400);
+	expect(await scrollTop()).toBe(paused);
+	await expect(page.locator('.playback-btn', { hasText: 'Resume' })).toBeVisible();
+
+	// Restart returns to the top.
+	await page.locator('.playback-btn', { hasText: 'Restart' }).click();
+	expect(await scrollTop()).toBe(0);
+});

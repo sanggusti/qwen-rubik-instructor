@@ -81,6 +81,68 @@
     });
   }
 
+  // --- Playback: auto-scroll the tour so the replay also runs hands-free.
+  // Scroll stays the single source of truth (the scrub, chips and section
+  // reveals all derive from it), so play/pause/replay never desyncs anything.
+  // Speed in viewport-heights per second — roughly one section every ~6s.
+  const PLAY_SPEED_VH = 0.16;
+  let playing = $state(false);
+  let playRaf = 0;
+  let lastTick = 0;
+
+  const atEnd = $derived(progress >= 0.999);
+
+  function tick(now: number): void {
+    if (!playing || !scrollEl) return;
+    const dt = Math.min((now - lastTick) / 1000, 0.1);
+    lastTick = now;
+    scrollEl.scrollTop += PLAY_SPEED_VH * scrollEl.clientHeight * dt;
+    const runway = scrollEl.scrollHeight - scrollEl.clientHeight;
+    if (scrollEl.scrollTop >= runway - 1) {
+      playing = false;
+      return;
+    }
+    playRaf = requestAnimationFrame(tick);
+  }
+
+  function play(): void {
+    if (!scrollEl) return;
+    if (atEnd) scrollEl.scrollTop = 0;
+    playing = true;
+    lastTick = performance.now();
+    playRaf = requestAnimationFrame(tick);
+  }
+
+  function pause(): void {
+    playing = false;
+    cancelAnimationFrame(playRaf);
+  }
+
+  function restart(): void {
+    pause();
+    if (scrollEl) scrollEl.scrollTop = 0;
+  }
+
+  // Manual input takes over instantly — grabbing the wheel mid-tour pauses it.
+  // Touches on the playback bar are exempt: a tap fires touchstart before its
+  // click, and pausing here first would flip Pause into Resume mid-tap.
+  function onUserInput(ev: Event): void {
+    if ((ev.target as HTMLElement | null)?.closest('.playback')) return;
+    if (playing) pause();
+  }
+
+  $effect(() => {
+    if (!scrollEl) return;
+    const el = scrollEl;
+    el.addEventListener('wheel', onUserInput, { passive: true });
+    el.addEventListener('touchstart', onUserInput, { passive: true });
+    return () => {
+      el.removeEventListener('wheel', onUserInput);
+      el.removeEventListener('touchstart', onUserInput);
+      cancelAnimationFrame(playRaf);
+    };
+  });
+
   const capturedDate = $derived(new Date(solve.capturedAt).toLocaleString());
 </script>
 
@@ -152,6 +214,25 @@
 
     {@render children?.()}
   </div>
+
+  {#if !reducedMotion}
+    <div class="playback glass-panel" role="group" aria-label="Replay controls">
+      {#if playing}
+        <button class="playback-btn" type="button" onclick={pause} aria-label="Pause the tour">
+          ❚❚ Pause
+        </button>
+      {:else}
+        <button class="playback-btn" type="button" onclick={play} aria-label="Play the tour">
+          ▶ {atEnd ? 'Replay' : progress > 0.001 ? 'Resume' : 'Play'}
+        </button>
+      {/if}
+      {#if progress > 0.001}
+        <button class="playback-btn" type="button" onclick={restart} aria-label="Back to the start">
+          ↺ Restart
+        </button>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -333,5 +414,41 @@
   .solved-cta {
     font-family: var(--font-display);
     letter-spacing: 0.06em;
+  }
+
+  /* Floating tour controls: fixed to the viewport, above the scroll content. */
+  .playback {
+    position: fixed;
+    left: 50%;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 14px;
+  }
+
+  .playback-btn {
+    appearance: none;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .playback-btn:hover {
+    border-color: var(--accent-b);
+    color: var(--accent-b);
+    background: var(--accent-b-bg);
   }
 </style>

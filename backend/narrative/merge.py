@@ -25,6 +25,7 @@ def beat_from(frame: VisualFrame, narration: FrameNarration) -> Beat:
         highlight=frame.highlight,
         dwell_ms=frame.dwell_ms,
         pace=frame.pace,
+        stage=frame.stage or None,
     )
 
 

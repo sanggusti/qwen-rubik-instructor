@@ -18,6 +18,7 @@
   import { authStore } from '$lib/auth/store.svelte';
   import { challengeStore, CHALLENGE_SCRAMBLE_LENGTH } from '$lib/stores/challenge.svelte';
   import { startChallenge, submitScore } from '$lib/api/challenge';
+  import { recordScramble } from '$lib/review/session';
 
   onMount(() => {
     const meta = document.querySelector('meta[name="viewport"]');
@@ -65,6 +66,10 @@
   // walkthrough owns the stage (or the keypad covers it).
   let hintDismissed = $state(false);
   $effect(() => cubeStore.onMove(() => (hintDismissed = true)));
+
+  // Capture scrambles for the /review session (any source: HUD button, Space
+  // key, challenge setup).
+  $effect(() => cubeStore.onScramble((moves) => recordScramble(moves)));
 
   // --- Challenge mode -------------------------------------------------------
   let authModalOpen = $state(false);

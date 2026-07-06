@@ -32,13 +32,13 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
-function smoothstep(t: number): number {
+export function smoothstep(t: number): number {
   const c = clamp01(t);
   return c * c * (3 - 2 * c);
 }
 
 // Piecewise smoothstep interpolation through (p, x) anchor points.
-function interp(points: { p: number; x: number }[], p: number): number {
+export function interp(points: { p: number; x: number }[], p: number): number {
   if (p <= points[0].p) return points[0].x;
   for (let i = 1; i < points.length; i++) {
     if (p <= points[i].p) {

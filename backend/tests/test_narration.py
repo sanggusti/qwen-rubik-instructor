@@ -280,6 +280,13 @@ def test_beat_from_keeps_skeleton_moves():
     assert beat.moves == ["R", "U"] and beat.highlight == "edge" and beat.text == "hi"
 
 
+def test_beat_from_carries_stage_id():
+    beat = beat_from(_frame(["R"]), FrameNarration(text="hi"))
+    assert beat.stage == "demo"
+    # Serialized camelCase payload exposes it for the review canvas.
+    assert beat.model_dump(by_alias=True, exclude_none=True)["stage"] == "demo"
+
+
 def test_step_from_setup_frame_uses_move_sequence_validator():
     plan = build_topic_lesson("sexy-move")
     fr = plan.frames[0]

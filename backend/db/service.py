@@ -8,6 +8,7 @@ same retrieval/forgetting rules; change both together.
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -147,6 +148,52 @@ def leaderboard(drill_id: str, limit: int = 10) -> list[dict]:
         {"userId": row[0][:8], "handle": row[1], "bestMs": row[2], "at": row[3]}
         for row in rows
     ]
+
+
+# --- Review-session mirror ---------------------------------------------------
+
+# One captured walkthrough is a few KB of narration + moves; anything near this
+# cap is malformed or abusive, not a real session.
+REVIEW_PAYLOAD_MAX_BYTES = 64 * 1024
+
+
+def save_review_session(user_id: str, payload: dict) -> bool:
+    """Client-authoritative snapshot: replace the user's mirrored review
+    session wholesale (last write wins)."""
+    if not database.enabled():
+        return False
+    raw = json.dumps(payload, separators=(",", ":"))
+    if len(raw.encode("utf-8")) > REVIEW_PAYLOAD_MAX_BYTES:
+        raise ValueError("review session payload too large")
+    upsert_user(user_id)
+    database.execute(
+        """
+        INSERT INTO review_sessions (user_id, payload)
+        VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          payload = excluded.payload,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+        """,
+        (user_id, raw),
+    )
+    return True
+
+
+def load_review_session(user_id: str) -> Optional[dict]:
+    """The mirrored session plus its sync time, or None if unknown/off."""
+    if not database.enabled():
+        return None
+    rows = database.query(
+        "SELECT payload, updated_at FROM review_sessions WHERE user_id = ?",
+        (user_id,),
+    )
+    if not rows:
+        return None
+    try:
+        session = json.loads(rows[0][0])
+    except ValueError:
+        return None
+    return {"userId": user_id, "session": session, "updatedAt": rows[0][1]}
 
 
 # --- Memory digest (port of frontend buildMemoryDigest) ----------------------

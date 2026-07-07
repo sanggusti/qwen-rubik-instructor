@@ -2,7 +2,7 @@ import type { MoveAnimator } from './animator';
 import { generateScramble } from '../cube/scramble';
 
 export interface KeyboardOptions {
-  onScramble?: () => void;
+  onScramble?: (moves: string[]) => void;
   onReset?: () => void;
   // Triggered for any move enqueued through the keyboard.
   onMove?: (move: string) => void;
@@ -27,7 +27,7 @@ export function attachKeyboard(animator: MoveAnimator, opts: KeyboardOptions = {
       ev.preventDefault();
       const seq = generateScramble(20);
       for (const m of seq) animator.enqueue(m);
-      opts.onScramble?.();
+      opts.onScramble?.(seq);
       return;
     }
     if (key === 'Enter') {

@@ -1,0 +1,156 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="review-canvas" name="Review Canvas">
+    <mxGraphModel dx="1000" dy="700" grid="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1620" pageHeight="920" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="The Final Review Canvas — capture the session, compile it, replay it on scroll" style="text;html=1;fontSize=20;fontStyle=1;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="16" width="900" height="30" as="geometry"/>
+        </mxCell>
+
+        <!-- ── /play: capture ─────────────────────────────────────────── -->
+        <mxCell id="play" value="/play — capture during the session" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=14;fontStyle=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="470" height="430" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1" value="Explore panel&#10;&quot;Solve my cube (Qwen)&quot;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="play">
+          <mxGeometry x="20" y="40" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2" value="generateWalkthrough — SSE&#10;beats: text + moves + stage&#10;(beat 0 = scramble-from-solved)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="play">
+          <mxGeometry x="250" y="35" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3" value="recordSolve(wt, level, method)&#10;narration captured verbatim" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="play">
+          <mxGeometry x="20" y="140" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4" value="cubeStore.onScramble(moves)&#10;→ recordScramble" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="play">
+          <mxGeometry x="250" y="140" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p5" value="localStorage&#10;rubik-review-session&#10;{ solve.beats, lastScramble }" style="shape=cylinder3;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#6c8ebf;boundedLbl=1;" vertex="1" parent="play">
+          <mxGeometry x="130" y="240" width="210" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="pnote" value="Capture at generation time — the backend stays session-stateless. Replaying later never re-calls the LLM, so the review shows the exact narration the learner saw." style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="play">
+          <mxGeometry x="20" y="350" width="430" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ── backend mirror ─────────────────────────────────────────── -->
+        <mxCell id="backend" value="FastAPI + Turso — optional mirror (kill-switch: empty TURSO_DATABASE_URL)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=14;fontStyle=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="560" y="70" width="450" height="430" as="geometry"/>
+        </mxCell>
+        <mxCell id="b1" value="POST /review/sync&#10;client-authoritative, last write wins&#10;payload capped at 64 KB → 413" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="backend">
+          <mxGeometry x="20" y="40" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="b2" value="GET /review/{userId}&#10;404 when unknown / mirror off" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="backend">
+          <mxGeometry x="240" y="40" width="190" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="b3" value="review_sessions&#10;(user_id PK, payload JSON, updated_at)" style="shape=cylinder3;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#82b366;boundedLbl=1;" vertex="1" parent="backend">
+          <mxGeometry x="115" y="150" width="220" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="b4" value="Beat gained an additive stage field (merge.py passes frame.stage) — real section titles like &quot;First-layer cross&quot;. Zero-move stages are dropped server-side, so the client never zips beats against a fixed stage list." style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="backend">
+          <mxGeometry x="20" y="270" width="410" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="b5" value="Same pattern as the memory mirror (Part 13): browser owns the data, server follows." style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="backend">
+          <mxGeometry x="20" y="355" width="410" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- ── /review: compile + replay ──────────────────────────────── -->
+        <mxCell id="review" value="/review — compile &amp; replay" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontSize=14;fontStyle=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="70" width="520" height="800" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1" value="loadReviewSession()&#10;empty? → GET /review/{userId} → hydrate" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="20" y="40" width="230" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2" value="compileReview(beats)&#10;validate notation · fold zero-move beats&#10;replay from solved ⇒ solvedAtEnd&#10;invalid → null → empty state" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="270" y="30" width="230" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3" value="CompiledReview&#10;fullSequence: string[]&#10;sections: scramble → checkpoints → solved&#10;each with [startIndex, endIndex)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="145" y="140" width="230" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4" value="measure()&#10;.content-section centers + sides&#10;(re-runs on resize)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="20" y="260" width="230" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5" value="buildReviewTimeline&#10;moveT holds a plateau at each section&#10;center; fade → 0 before the summaries" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="270" y="260" width="230" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="r6" value="scroll progress p (rAF-throttled)&#10;THE single source of truth" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="145" y="370" width="230" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="r7" value="SequenceScrubber.setProgress(pose.moveT)&#10;bidirectional, snap-to-lattice, drift-free&#10;(reused as-is from the landing page)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="20" y="470" width="230" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="r8" value="Sections UI&#10;narration + ALL move chips (never&#10;windowed) · active = floor(moveT)&#10;&quot;Moves 9–29 of 174&quot;" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="270" y="470" width="230" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="r9" value="Playback bar&#10;Play / Pause / Resume / Replay / Restart&#10;rAF auto-scrolls scrollTop — it never&#10;touches the cube directly" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="review">
+          <mxGeometry x="145" y="580" width="230" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="rnote" value="Wheel / touch pauses the tour instantly — except on the playback bar itself: a tap fires touchstart before click, and pausing there first would flip Pause into Resume mid-tap (found by the iPhone-emulated E2E project). Summaries (coursepath + practice) are deliberately NOT .content-section — only cube landing zones are measured." style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=8;" vertex="1" parent="review">
+          <mxGeometry x="20" y="690" width="480" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- ── edges ──────────────────────────────────────────────────── -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="p2" target="p3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="p3" target="p5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="p4" target="p5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="best-effort sync (fire-and-forget)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="p5" target="b1">
+          <mxGeometry x="-0.35" relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="535" y="355"/>
+              <mxPoint x="535" y="145"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="b1" target="b3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="b3" target="b2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="fresh-device fallback" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;dashed=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="b2" target="r1">
+          <mxGeometry x="-0.4" relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" value="same-device path" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="p5" target="r1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="285" y="540"/>
+              <mxPoint x="1035" y="540"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r1" target="r2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r2" target="r3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" value="section endIndexes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r3" target="r5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r4" target="r5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" value="pose(p)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r5" target="r6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r6" target="r7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;" edge="1" parent="1" source="r6" target="r8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e17" value="scrollTop +=" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontSize=11;dashed=1;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="r9" target="r6">
+          <mxGeometry x="0.7" relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -4,6 +4,8 @@
   import { cubeStore } from '../stores/cube.svelte';
   import { profileStore } from '../stores/profile.svelte';
   import { generateWalkthrough } from '../api/narrate';
+  import { loadReviewSession, recordSolve } from '../review/session';
+  import { syncReviewSession } from '../api/review';
   import type { CubeletType } from '../scene/cubelets';
   import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
@@ -69,6 +71,13 @@
         }
       });
       walkthroughStore.loadGenerated(wt);
+      // Capture for the /review canvas (localStorage), then best-effort
+      // mirror to the backend so it follows the learner across devices.
+      recordSolve(wt, profileStore.profile.level, profileStore.profile.method);
+      const captured = loadReviewSession();
+      if (captured?.solve) {
+        void syncReviewSession(profileStore.profile.sessionId, captured);
+      }
       profileStore.appendHistory({
         kind: 'walkthrough',
         method: profileStore.profile.method,

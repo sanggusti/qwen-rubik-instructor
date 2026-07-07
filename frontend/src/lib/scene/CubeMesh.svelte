@@ -57,7 +57,7 @@
     });
     const detachKeyboard = attachKeyboard(animator, {
       onReset: () => cubeStore.reset(),
-      onScramble: () => cubeStore.handleExternalScramble()
+      onScramble: (moves) => cubeStore.handleExternalScramble(moves)
     });
     return () => {
       detachDrag();

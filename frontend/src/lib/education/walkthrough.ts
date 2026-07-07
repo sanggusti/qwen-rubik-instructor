@@ -22,6 +22,8 @@ export interface Beat {
    *  - 'fast': all at once (used for setup/scramble beats that shouldn't be studied).
    */
   pace?: 'step' | 'fast';
+  /** Solver stage id this beat narrates (e.g. 'cross'); absent for catalog beats. */
+  stage?: string;
 }
 
 export interface Walkthrough {

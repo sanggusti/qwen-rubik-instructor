@@ -38,6 +38,8 @@
 		"@threlte/extras": "^9.21.0",
 		"@tweenjs/tween.js": "^25.0.0",
 		"canvas-confetti": "^1.9.4",
+		"highlight.js": "^11.11.1",
+		"marked": "^18.0.5",
 		"three": "^0.185.0"
 	}
 }

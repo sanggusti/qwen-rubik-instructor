@@ -2,6 +2,7 @@
   import { fade } from 'svelte/transition';
   import HeroStage from './HeroStage.svelte';
   import ContentSection from './ContentSection.svelte';
+  import BlogCtaSection from './BlogCtaSection.svelte';
   import ContributorsSection from './ContributorsSection.svelte';
   import LeaderboardSection from './LeaderboardSection.svelte';
   import LandingFooter from './LandingFooter.svelte';
@@ -223,6 +224,7 @@
 
   <LeaderboardSection />
 
+  <BlogCtaSection />
   <ContributorsSection />
   <LandingFooter />
   </div>

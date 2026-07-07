@@ -287,6 +287,20 @@ def test_beat_from_carries_stage_id():
     assert beat.model_dump(by_alias=True, exclude_none=True)["stage"] == "demo"
 
 
+def test_beat_from_carries_expected_state_on_solve_beats():
+    s = solved_state()
+    apply_moves(s, "R U F D L B".split())
+    plan = build_solve_walkthrough(s)
+    stage_frame = next(fr for fr in plan.frames if fr.expected_state is not None)
+    beat = beat_from(stage_frame, FrameNarration(text="turn"))
+    assert beat.expected_state == stage_frame.expected_state
+    # Serialized camelCase payload exposes it for physical-mode checkpoints;
+    # catalog beats (expected_state=None) keep it out via exclude_none.
+    assert beat.model_dump(by_alias=True, exclude_none=True)["expectedState"] == stage_frame.expected_state
+    intro = beat_from(plan.frames[0], FrameNarration(text="intro"))
+    assert "expectedState" not in intro.model_dump(by_alias=True, exclude_none=True)
+
+
 def test_step_from_setup_frame_uses_move_sequence_validator():
     plan = build_topic_lesson("sexy-move")
     fr = plan.frames[0]

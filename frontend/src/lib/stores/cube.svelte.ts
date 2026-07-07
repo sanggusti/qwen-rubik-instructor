@@ -12,6 +12,10 @@ export interface CubeAnimatorControls {
   isBusy(): boolean;
   reset(): void;
   setMoveDuration(ms?: number): void;
+  /** Abandon the in-flight move and drain the queue without applying. */
+  cancel(): void;
+  /** Rebuild solved geometry and repaint stickers from an arbitrary state. */
+  seedFromState(state: State): void;
 }
 
 const VALID_MOVE = /^([UDLRFBMESxyz])('?)$/;
@@ -24,6 +28,7 @@ class CubeStore {
   private readonly moveSubscribers = new Set<(move: string, state: State) => void>();
   private readonly resetSubscribers = new Set<() => void>();
   private readonly scrambleSubscribers = new Set<(moves: string[]) => void>();
+  private readonly loadSubscribers = new Set<(state: State) => void>();
   private controls: CubeAnimatorControls | null = null;
 
   bind(controls: CubeAnimatorControls): void {
@@ -66,6 +71,23 @@ class CubeStore {
     this.controls?.setMoveDuration(ms);
   }
 
+  /**
+   * Load an arbitrary facelet state (e.g. scanned from a physical cube).
+   * Cancels any in-flight animation, rebuilds solved geometry, repaints the
+   * stickers, and notifies onLoadState subscribers — challenge anti-cheat
+   * treats this like a reset/scramble.
+   */
+  loadState(state: State): void {
+    if (!this.controls) return;
+    this.controls.cancel();
+    this.controls.seedFromState(state);
+    this.state = cloneState(state);
+    this.isBusy = false;
+    for (const fn of this.loadSubscribers) {
+      try { fn(cloneState(state)); } catch (e) { console.error(e); }
+    }
+  }
+
   getState(): State {
     return cloneState(this.state);
   }
@@ -86,6 +108,12 @@ class CubeStore {
   onScramble(fn: (moves: string[]) => void): () => void {
     this.scrambleSubscribers.add(fn);
     return () => this.scrambleSubscribers.delete(fn);
+  }
+
+  /** Subscribe to full-state loads (physical-cube scans). */
+  onLoadState(fn: (state: State) => void): () => void {
+    this.loadSubscribers.add(fn);
+    return () => this.loadSubscribers.delete(fn);
   }
 
   // Called by CubeMesh.svelte when the keyboard Space shortcut scrambles

@@ -4,6 +4,7 @@
   import { walkthroughStore } from '../stores/walkthrough.svelte';
   import { demoStore } from '../stores/demo.svelte';
   import { cubeStore } from '../stores/cube.svelte';
+  import { physicalStore } from '../stores/physical.svelte';
   import { profileStore } from '../stores/profile.svelte';
   import { askQwen } from '../api/narrate';
 
@@ -33,6 +34,29 @@
 
   let displayedBody = $state('');
   let lastKey = '';
+
+  // Physical read-along: which beats the learner has already confirmed, so a
+  // beat's moves are applied to the mirror exactly once (also survives
+  // navigating back with Prev). Reset when a new walkthrough loads.
+  let confirmedBeats = $state(new Set<number>());
+  let confirmedFor = $state<string | null>(null);
+
+  function confirmBeat(beatIndex: number, moves: string[], last: boolean): void {
+    const id = walkthroughStore.snapshot.walkthrough?.id ?? null;
+    if (confirmedFor !== id) {
+      confirmedBeats = new Set();
+      confirmedFor = id;
+    }
+    if (confirmedBeats.has(beatIndex)) return;
+    confirmedBeats = new Set(confirmedBeats).add(beatIndex);
+    physicalStore.confirmMoves(moves);
+    if (!last) walkthroughStore.next();
+  }
+
+  function beatConfirmed(beatIndex: number): boolean {
+    return confirmedFor === (walkthroughStore.snapshot.walkthrough?.id ?? null) &&
+      confirmedBeats.has(beatIndex);
+  }
 
   let question = $state('');
   let asking = $state(false);
@@ -149,7 +173,33 @@
       {/if}
     {:else}
       <p class="stage-body">{displayedBody}</p>
-      {#if active.move}
+      {#if active.owner === 'walkthrough' && physicalStore.active && walkthroughStore.snapshot.walkthrough}
+        <!-- Physical read-along: the learner performs each beat on their real
+             cube, then confirms; the mirror advances by the expected moves.
+             The intro beat's moves are the reconstructed scramble (data, not
+             instructions) so it only offers Start. -->
+        {@const s = walkthroughStore.snapshot}
+        {#if s.beat.moves?.length && s.beatIndex > 0 && !beatConfirmed(s.beatIndex)}
+          <div class="stage-move physical-moves">{s.beat.moves.join(' ')}</div>
+          <div class="stage-actions">
+            <button
+              type="button"
+              class="stage-btn emphasis"
+              onclick={() => confirmBeat(s.beatIndex, s.beat.moves ?? [], s.beatIndex >= s.beatCount - 1)}
+            >I did these on my cube ✓</button>
+          </div>
+        {:else if s.beatIndex > 0 && beatConfirmed(s.beatIndex) && s.beatIndex >= s.beatCount - 1}
+          <div class="stage-status done">Walkthrough complete ✓</div>
+        {:else if s.beatIndex < s.beatCount - 1}
+          <!-- Intro beat (its moves are the reconstructed scramble, not
+               instructions) or a text-only beat: plain advance. -->
+          <div class="stage-actions">
+            <button type="button" class="stage-btn" onclick={() => walkthroughStore.next()}>
+              {s.beatIndex === 0 ? 'Start →' : 'Next →'}
+            </button>
+          </div>
+        {/if}
+      {:else if active.move}
         <div class="stage-move">{active.move}</div>
       {/if}
     {/if}
@@ -244,6 +294,12 @@
     min-height: 2em;
     white-space: pre-line;
     margin-bottom: 8px;
+  }
+  /* Physical read-along: readable at arm's length with a cube in hand. */
+  .stage-move.physical-moves {
+    font-size: 26px;
+    line-height: 1.35;
+    white-space: normal;
   }
   .stage-move {
     margin-top: 6px;

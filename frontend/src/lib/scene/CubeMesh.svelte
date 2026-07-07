@@ -8,10 +8,12 @@
   import { LayerHighlight } from './layer-highlight';
   import { CubeView } from './cube-view';
   import { DirectionArrow } from './direction-arrow';
+  import { paintCubeFromState } from './paint-from-state';
   import { cubeStore } from '../stores/cube.svelte';
   import { cubeViewStore } from '../stores/cube-view.svelte';
   import { demoStore } from '../stores/demo.svelte';
   import { lessonStore } from '../stores/lesson.svelte';
+  import { physicalStore } from '../stores/physical.svelte';
   import { practiceStore } from '../stores/practice.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
   import SCENE_CONFIG from '../config/scene-config';
@@ -35,14 +37,49 @@
     cubeView.rebind();
   }
 
-  const { camera, canvas } = useThrelte();
+  const { camera, canvas, invalidate } = useThrelte();
+
+  // Drag + keyboard are detached while a physical-cube session is active:
+  // the on-screen cube is then a read-only mirror of the real cube and
+  // digital input must never diverge it.
+  let detachInput: (() => void) | null = null;
+  function attachInput(): void {
+    const detachDrag = attachDragControls(cube, animator, camera.current, canvas, {
+      onPreviewLayer: (cubies) => layerHighlight.set(cubies),
+    });
+    const detachKeyboard = attachKeyboard(animator, {
+      onReset: () => cubeStore.reset(),
+      onScramble: (moves) => cubeStore.handleExternalScramble(moves)
+    });
+    detachInput = () => {
+      detachDrag();
+      detachKeyboard();
+    };
+  }
+
+  $effect(() => {
+    if (physicalStore.active) {
+      detachInput?.();
+      detachInput = null;
+      layerHighlight.clear();
+    } else if (!detachInput) {
+      attachInput();
+    }
+  });
 
   onMount(() => {
     cubeStore.bind({
       enqueue: (move) => animator.enqueue(move),
       isBusy: () => animator.isBusy(),
       reset: rebuildCube,
-      setMoveDuration: (ms) => { animator.durationMs = ms ?? defaultMoveMs; }
+      setMoveDuration: (ms) => { animator.durationMs = ms ?? defaultMoveMs; },
+      cancel: () => animator.cancel(),
+      seedFromState: (state) => {
+        animator.cancel();
+        rebuildCube();
+        paintCubeFromState(cube, state);
+        invalidate();
+      }
     });
     cubeViewStore.bind({
       highlight: (type, opts) => cubeView.highlight(type, opts),
@@ -52,16 +89,9 @@
     animator.onMoveStart = () => cubeStore.handleMoveStart();
     animator.onMoveComplete = (name) => cubeStore.handleMoveComplete(name);
 
-    const detachDrag = attachDragControls(cube, animator, camera.current, canvas, {
-      onPreviewLayer: (cubies) => layerHighlight.set(cubies),
-    });
-    const detachKeyboard = attachKeyboard(animator, {
-      onReset: () => cubeStore.reset(),
-      onScramble: (moves) => cubeStore.handleExternalScramble(moves)
-    });
     return () => {
-      detachDrag();
-      detachKeyboard();
+      detachInput?.();
+      detachInput = null;
       layerHighlight.clear();
       directionArrow.dispose();
       cubeStore.unbind();
@@ -82,6 +112,10 @@
   // Scale down slightly on mobile for extra clearance above the stage sheet.
   const MOBILE_STAGE_SCALE = 0.78;
 
+  // Rendering: normal mode preserves today's every-frame behavior. During a
+  // physical session the mirror goes truly on-demand (the auto-invalidating
+  // task otherwise defeats Threlte's on-demand render mode and burns
+  // GPU/battery next to a live camera) — render only while something moves.
   useTask(() => {
     const now = performance.now();
 
@@ -111,6 +145,11 @@
     // Scale: shrink on mobile with stage open; full size otherwise.
     const targetScale = mobileStageActive ? MOBILE_STAGE_SCALE : 1;
 
+    const lerping =
+      Math.abs(targetX - cube.root.position.x) > 0.002 ||
+      Math.abs(targetY - cube.root.position.y) > 0.002 ||
+      Math.abs(targetScale - cube.root.scale.x) > 0.002;
+
     cube.root.position.x += (targetX - cube.root.position.x) * 0.15;
     cube.root.position.y += (targetY - cube.root.position.y) * 0.15;
     cube.root.scale.setScalar(cube.root.scale.x + (targetScale - cube.root.scale.x) * 0.15);
@@ -118,7 +157,9 @@
     animator.update(now);
     cubeView.update(now);
     directionArrow.update();
-  });
+
+    if (!physicalStore.active || animator.isBusy() || lerping) invalidate();
+  }, { autoInvalidate: false });
 </script>
 
 <T is={cube.root} />

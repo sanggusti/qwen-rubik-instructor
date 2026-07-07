@@ -4,15 +4,17 @@
   import LessonsPanel from '../panels/LessonsPanel.svelte';
   import PracticePanel from '../panels/PracticePanel.svelte';
   import ExplorePanel from '../panels/ExplorePanel.svelte';
+  import PhysicalPanel from '../panels/PhysicalPanel.svelte';
   import DebuggerPanel from '../panels/DebuggerPanel.svelte';
   import LevelPanel from '../panels/LevelPanel.svelte';
   import ChallengeButton from './ChallengeButton.svelte';
   import { cubeStore } from '../stores/cube.svelte';
   import { demoStore } from '../stores/demo.svelte';
   import { challengeStore, formatChallengeTime } from '../stores/challenge.svelte';
+  import { physicalStore } from '../stores/physical.svelte';
 
   type ExperienceKeep = 'lesson' | 'practice' | 'walkthrough' | 'none';
-  type TabId = 'lessons' | 'practice' | 'explore' | 'debugger' | 'level';
+  type TabId = 'lessons' | 'practice' | 'explore' | 'physical' | 'debugger' | 'level';
 
   // Opening any tab ends whichever experience(s) it doesn't own, exactly like
   // the legacy Hud's onOpen -> closeOthers wiring (Phase 4 verify: only one
@@ -35,6 +37,7 @@
     { id: 'lessons', label: 'Lessons', keep: 'lesson' },
     { id: 'practice', label: 'Practice', keep: 'practice' },
     { id: 'explore', label: 'Explore', keep: 'walkthrough' },
+    { id: 'physical', label: 'Camera', keep: 'none' },
     { id: 'debugger', label: 'State', keep: 'none' },
     { id: 'level', label: 'Level', keep: 'none' }
   ];
@@ -92,7 +95,7 @@
         <span class="icon" aria-hidden="true">📖</span>
         <span class="label">Guide</span>
       </button>
-      {#if !keypadOpen && challengeStore.status === 'idle'}
+      {#if !keypadOpen && challengeStore.status === 'idle' && !physicalStore.active}
         <div class="quick-actions">
           <button type="button" class="dock-action" onclick={() => cubeStore.scramble()}>Scramble</button>
           <button type="button" class="dock-action" onclick={() => cubeStore.reset()}>Reset</button>
@@ -112,7 +115,7 @@
   {/if}
 </div>
 
-{#if !keypadOpen}
+{#if !keypadOpen && !physicalStore.active}
   <button
     type="button"
     class="keypad-fab"
@@ -147,6 +150,8 @@
           <PracticePanel onSelect={collapse} />
         {:else if activeId === 'explore'}
           <ExplorePanel onPlay={collapse} onSelectWalkthrough={() => onOpenExperience('walkthrough')} />
+        {:else if activeId === 'physical'}
+          <PhysicalPanel onPlay={collapse} />
         {:else if activeId === 'debugger'}
           <DebuggerPanel />
         {:else if activeId === 'level'}

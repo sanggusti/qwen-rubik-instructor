@@ -39,6 +39,9 @@ class Beat(CamelModel):
     pace: Optional[Literal["step", "fast"]] = None
     # Solver stage id this beat narrates (e.g. "cross"); None for catalog beats.
     stage: Optional[str] = None
+    # Exact cube state after this beat's moves (solve beats only). Physical
+    # mode verifies the learner's real cube against this at stage checkpoints.
+    expected_state: Optional[dict[str, list[str]]] = None
 
 
 class Walkthrough(CamelModel):

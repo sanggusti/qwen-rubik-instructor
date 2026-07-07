@@ -154,6 +154,21 @@
         <div class="stage-status" class:done={snap.stepCompleted}>
           {snap.stepCompleted ? (snap.lessonCompleted ? 'Lesson complete ✓' : 'Step complete ✓') : 'In progress'}
         </div>
+        {#if physicalStore.active && !snap.stepCompleted && snap.step.expectedMoves?.length}
+          <!-- Digital validators can't see moves made on a real cube (input is
+               suppressed in physical mode); whole-cube rotations are invisible
+               to camera scans on top of that. Manual-confirm gate either way. -->
+          <p class="stage-slice-hint">
+            {snap.step.expectedMoves.some((m) => 'xyz'.includes(m[0]))
+              ? "This step uses whole-cube rotations the camera can't track — do it on your real cube, then mark it complete."
+              : 'Physical session: do the moves on your real cube, then mark the step complete.'}
+          </p>
+          <div class="stage-actions">
+            <button type="button" class="stage-btn" onclick={() => lessonStore.markComplete()}>
+              I did it on my cube ✓
+            </button>
+          </div>
+        {/if}
         {#if snap.coachingMessages.length}
           <div class="stage-coaching">
             {#each snap.coachingMessages as msg, i (i)}

@@ -79,6 +79,39 @@ export async function openCamera(facing: CameraFacing = 'user'): Promise<CameraW
   };
 }
 
+// Crop the sampled grid region out of a frame and encode it as a small JPEG
+// data URL — kept per captured face so /scan/assist can show Qwen exactly
+// what the classifier saw. ~240px is plenty for 9 sticker colors and stays
+// far under the server's per-image size cap.
+export function encodeFaceCrop(frame: RGBAImage, coverage: number, size = 240): string | null {
+  try {
+    const src = document.createElement('canvas');
+    src.width = frame.width;
+    src.height = frame.height;
+    const srcCtx = src.getContext('2d');
+    if (!srcCtx) return null;
+    // Copy into a fresh ArrayBuffer-backed array — ImageData's constructor
+    // rejects Uint8ClampedArray<ArrayBufferLike> under strict lib.dom types.
+    const pixels = new Uint8ClampedArray(frame.data.length);
+    pixels.set(frame.data);
+    srcCtx.putImageData(new ImageData(pixels, frame.width, frame.height), 0, 0);
+
+    const side = Math.min(frame.width, frame.height) * coverage;
+    const ox = (frame.width - side) / 2;
+    const oy = (frame.height - side) / 2;
+
+    const out = document.createElement('canvas');
+    out.width = size;
+    out.height = size;
+    const outCtx = out.getContext('2d');
+    if (!outCtx) return null;
+    outCtx.drawImage(src, ox, oy, side, side, 0, 0, size, size);
+    return out.toDataURL('image/jpeg', 0.75);
+  } catch {
+    return null;
+  }
+}
+
 export interface StillnessOptions {
   /** Called with a full-resolution frame once the scene has been steady. */
   onSteady(frame: RGBAImage): void;

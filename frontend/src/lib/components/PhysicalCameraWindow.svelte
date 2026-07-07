@@ -189,6 +189,9 @@
       {#if physicalStore.validationMessage}
         <p class="cam-warn">{physicalStore.validationMessage}</p>
       {/if}
+      {#if physicalStore.assistMessage}
+        <p class="cam-hint">{physicalStore.assistMessage}</p>
+      {/if}
       <div class="cam-actions">
         <button
           class="cam-btn primary"
@@ -196,6 +199,16 @@
           data-testid="confirm-adjust"
           onclick={() => physicalStore.confirmAdjust()}>My cube looks right ✓</button
         >
+        {#if physicalStore.assistAvailable}
+          <button
+            class="cam-btn"
+            type="button"
+            data-testid="assist"
+            disabled={physicalStore.assistPending}
+            onclick={() => physicalStore.requestAssist()}
+            >{physicalStore.assistPending ? 'Asking…' : '🔮 Ask Qwen to double-check'}</button
+          >
+        {/if}
         {#if !physicalStore.manual}
           <button class="cam-btn" type="button" onclick={() => physicalStore.beginScan()}
             >Re-scan</button

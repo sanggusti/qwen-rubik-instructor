@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     # Show "give_up" entries in the challenge leaderboard (default: show).
     # Set LEADERBOARD_SHOW_GIVE_UP=false in .env to hide them globally.
     leaderboard_show_give_up: bool = True
+    # Vision model for /scan/assist (physical-cube sticker disambiguation),
+    # served over the same DashScope OpenAI-compatible endpoint.
+    qwen_vl_model: str = "qwen3-vl-plus"
+    # Per-image cap for /scan/assist uploads (bytes, decoded size).
+    scan_max_image_bytes: int = 200_000
+    # /scan/assist requests allowed per client per minute (it is a fallback
+    # for a handful of ambiguous stickers, not a scanning pipeline).
+    scan_rate_per_min: int = 10
 
 
 settings = Settings()

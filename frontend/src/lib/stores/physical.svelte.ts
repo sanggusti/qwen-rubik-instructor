@@ -7,8 +7,9 @@
 // camera is powered only while actually scanning (stopped entirely after the
 // sixth face; docs §7 camera lifecycle contract).
 
+import { scanAssist } from '../api/scan';
 import { chime, buzz, tick } from '../physical/audio';
-import { attachStillness, openCamera } from '../physical/camera';
+import { attachStillness, encodeFaceCrop, openCamera } from '../physical/camera';
 import type { CameraWindow } from '../physical/camera';
 import { classifyFace } from '../physical/color-classify';
 import { explainDiff } from '../physical/infer-moves';
@@ -74,11 +75,81 @@ class PhysicalStore {
   private detachStillness: (() => void) | null = null;
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private storage: StorageLike | null = defaultStorage();
+  private faceImages: Partial<Record<FaceKey, string | null>> = {};
+
+  /** Qwen-VL assist state for the adjust step. */
+  assistPending: boolean = $state(false);
+  assistMessage: string | null = $state(null);
+
+  /** Faces worth asking Qwen about: uncertain cells or suspect stickers. */
+  private assistTargets(): { face: FaceKey; cells: number[] }[] {
+    if (!this.working || !this.confidence) return [];
+    const targets = new Map<FaceKey, Set<number>>();
+    for (const face of Object.keys(this.confidence) as FaceKey[]) {
+      this.confidence[face].forEach((c, i) => {
+        if (c < 0.5) {
+          if (!targets.has(face)) targets.set(face, new Set());
+          targets.get(face)!.add(i);
+        }
+      });
+    }
+    for (const s of this.suspects) {
+      if (!targets.has(s.face)) targets.set(s.face, new Set());
+      targets.get(s.face)!.add(s.index);
+    }
+    return [...targets.entries()]
+      .filter(([face]) => this.faceImages[face])
+      .map(([face, cells]) => ({ face, cells: [...cells].sort((a, b) => a - b) }));
+  }
+
+  get assistAvailable(): boolean {
+    return !this.manual && this.phase === 'adjust' && this.assistTargets().length > 0;
+  }
+
+  /** Ask Qwen-VL to re-read the ambiguous faces; suggestions land in the
+   * grid (still user-confirmable, centers untouched). */
+  async requestAssist(): Promise<void> {
+    const targets = this.assistTargets();
+    if (this.assistPending || targets.length === 0) return;
+    this.assistPending = true;
+    this.assistMessage = 'Asking Qwen to double-check…';
+    try {
+      const result = await scanAssist(
+        targets.map((t) => ({
+          face: t.face,
+          imageBase64: this.faceImages[t.face]!,
+          lowConfidenceCells: t.cells
+        }))
+      );
+      let changed = 0;
+      for (const f of result.faces) {
+        f.cells.forEach((color, i) => {
+          if (i === 4 || !this.working) return;
+          if (this.working[f.face][i] !== color) {
+            this.machine.setCell(f.face, i, color);
+            changed++;
+          }
+        });
+      }
+      this.assistMessage = result.degraded
+        ? "Qwen couldn't look right now — fix the stickers by hand."
+        : changed > 0
+          ? `Qwen suggested ${changed} fix${changed > 1 ? 'es' : ''} — check the grid, then confirm.`
+          : 'Qwen agrees with the current reading.';
+    } catch (err) {
+      this.assistMessage = `Couldn't ask: ${(err as Error).message}`;
+    } finally {
+      this.assistPending = false;
+      this.sync();
+    }
+  }
 
   async beginScan(): Promise<void> {
     this.machine.begin();
     this.active = true;
     this.errorMessage = null;
+    this.faceImages = {};
+    this.assistMessage = null;
     this.sync();
     try {
       this.camera = await openCamera('user');
@@ -280,6 +351,8 @@ class PhysicalStore {
     this.explanation = null;
     this.verifyHint = null;
     this.replanOnReady = false;
+    this.faceImages = {};
+    this.assistMessage = null;
     if (this.flashTimer) clearTimeout(this.flashTimer);
     this.sync();
   }
@@ -297,6 +370,8 @@ class PhysicalStore {
     const outcome = this.machine.captureFace(labs);
     if (outcome.accepted) {
       tick();
+      // Keep a small crop so /scan/assist can double-check ambiguous cells.
+      this.faceImages[face] = encodeFaceCrop(frame, OVERLAY_COVERAGE);
       const scannedCells =
         this.machine.working?.[face] ?? null;
       this.showFlash({ face, cells: scannedCells, ok: true, message: 'Captured!' });

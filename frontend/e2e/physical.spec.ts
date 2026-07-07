@@ -45,6 +45,14 @@ test('scan a physical cube, load it, and read along to solved', async ({ page })
 		await settle(page);
 	}
 	await page.waitForFunction(() => window.__cubeStore!.isSolved, undefined, { timeout: 30_000 });
+
+	// The physical solve was captured for /review (same recordSolve path as
+	// digital) and compiles into a scrubbable session.
+	await page.goto('/review');
+	await page.waitForFunction(
+		() => !!(window as unknown as { __reviewCompiled?: unknown }).__reviewCompiled
+	);
+	expect(await page.locator('.content-section').count()).toBeGreaterThan(1);
 });
 
 test('manual entry works and loadState cancels a live challenge run', async ({ page }) => {

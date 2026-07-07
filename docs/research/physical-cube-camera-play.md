@@ -1,12 +1,18 @@
 # Playing with your physical cube: camera scanning, state mapping, and guided tracking
 
-**Status:** proposed on 2026-07-07; **revised the same day after a three-lens
-feasibility audit** (human experience, integration with every feature incl.
-PR #33, phone performance). The audit killed the original per-move
-scan-on-pause tracking model and replaced it with **trust-advance +
-checkpoint verification** (§6); it also surfaced two required performance
-mitigations (§9.1, §12) and three integration corrections (§9.3, §1, §12).
-PR #33 is now merged, so all review paths cited here live on `main`.
+**Status:** **implemented through P3 on 2026-07-07** (branch
+`feat/camera-inference`): fixture corpus + pure CV pipeline (P0), scan →
+loadState → read-along MVP (P1), chunked guided tracking with checkpoints,
+diff-explain and the repair ladder (P2), `/scan/assist` + the Python legality
+mirror + lesson gating + review capture (P3). P4 (ranked physical challenge,
+ML localization, per-chunk timestamps) remains future work. Originally
+proposed earlier the same day and **revised after a three-lens feasibility
+audit** (human experience, integration with every feature incl. PR #33, phone
+performance): the audit killed the original per-move scan-on-pause tracking
+model and replaced it with **trust-advance + checkpoint verification** (§6);
+it also surfaced two required performance mitigations (§9.1, §12) and three
+integration corrections (§9.3, §1, §12). PR #33 is merged, so all review
+paths cited here live on `main`.
 Companion diagram:
 [`docs/diagrams/10-physical-cube-scan.drawio`](../diagrams/10-physical-cube-scan.drawio)
 (export a same-named `.png` from draw.io when finalized, per repo convention).

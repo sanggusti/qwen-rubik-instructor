@@ -2,7 +2,7 @@
   import { contributors } from './contributors';
 </script>
 
-<section class="contributors">
+<section class="contributors" id="section-contributors">
   <h2 class="neon-heading">CONTRIBUTORS</h2>
   <div class="grid">
     {#each contributors as c, i (c.name)}

@@ -1,4 +1,4 @@
-<section class="content-section flip blog-cta">
+<section class="content-section flip blog-cta" id="section-blogs">
 	<div class="cube-col" aria-hidden="true"></div>
 	<div class="text-col glass-panel">
 		<h2 class="neon-heading section-heading">READ THE BUILD LOG</h2>

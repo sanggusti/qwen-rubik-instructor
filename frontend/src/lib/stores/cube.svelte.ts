@@ -23,7 +23,7 @@ class CubeStore {
 
   private readonly moveSubscribers = new Set<(move: string, state: State) => void>();
   private readonly resetSubscribers = new Set<() => void>();
-  private readonly scrambleSubscribers = new Set<() => void>();
+  private readonly scrambleSubscribers = new Set<(moves: string[]) => void>();
   private controls: CubeAnimatorControls | null = null;
 
   bind(controls: CubeAnimatorControls): void {
@@ -50,7 +50,7 @@ class CubeStore {
     const seq = generateScramble(length);
     for (const m of seq) this.controls?.enqueue(m);
     if (seq.length) this.isBusy = true;
-    for (const fn of this.scrambleSubscribers) fn();
+    for (const fn of this.scrambleSubscribers) fn(seq);
     return seq;
   }
 
@@ -83,15 +83,15 @@ class CubeStore {
   }
 
   /** Subscribe to scrambles (Scramble buttons / Space key). */
-  onScramble(fn: () => void): () => void {
+  onScramble(fn: (moves: string[]) => void): () => void {
     this.scrambleSubscribers.add(fn);
     return () => this.scrambleSubscribers.delete(fn);
   }
 
   // Called by CubeMesh.svelte when the keyboard Space shortcut scrambles
   // directly on the animator (bypassing scramble() above).
-  handleExternalScramble(): void {
-    for (const fn of this.scrambleSubscribers) fn();
+  handleExternalScramble(moves: string[]): void {
+    for (const fn of this.scrambleSubscribers) fn(moves);
   }
 
   // Called by CubeMesh.svelte's animator hooks.

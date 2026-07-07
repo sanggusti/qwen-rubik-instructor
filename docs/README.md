@@ -29,10 +29,14 @@ Docker images, a tag-triggered build-and-push pipeline, and a `v1.0.0`
 docker-compose deployment onto an Alibaba Cloud VPS behind Caddy-managed HTTPS,
 live at rubik.suryatresna.asia (Part 15). The promised architecture post then
 landed as Part 16: eight draw.io diagrams and a screenshot tour captured from
-a live run. Every phase shipped with tests; the current state
-is backend 739 tests, frontend 238 unit tests plus 25 E2E specs (desktop +
-mobile projects), all green, plus live model calls and in-browser checks
-confirming the end-to-end loop.
+a live run. On 2026-07-06/07 the app closed the loop on the session itself:
+a `/review` canvas that captures the narrated solve as it streams, mirrors it
+to Turso, and replays it as a scroll-scrubbed, hands-free tour a learner can
+follow on a physical cube (Part 17) — an effort that also root-caused nine
+E2E failures as stale selectors from the guide revamp. Every phase shipped
+with tests; the current state is backend 747 tests, frontend 260 unit tests
+plus 29 E2E specs (desktop + iPhone-emulation projects), all green, plus live
+model calls and in-browser checks confirming the end-to-end loop.
 
 ## The posts
 
@@ -153,12 +157,22 @@ confirming the end-to-end loop.
     hints, checkpoints, drills, and the full challenge-mode loop through to the
     leaderboard.
 
+17. **[The final review canvas: replay your solve on a real cube](./17-the-final-review-canvas-replay-your-solve-on-a-real-cube.md)**
+    Everything the app teaches evaporated when the session ended. Capturing
+    the narrated solve as it streams (beat 0 *is* the scramble-from-solved),
+    a Turso mirror on the Part 13 pattern, a compile step that refuses to
+    render anything it can't replay to solved, the landing page's scrubber
+    reborn as a checkpoint-by-checkpoint tour with full notation, and a
+    play/pause/replay bar that's pure auto-scroll — plus the touch bug where
+    tapping Pause un-paused itself, and nine "pre-existing" E2E failures
+    root-caused to selectors a UI revamp had deleted.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-17. **The 3-minute demo** — the cross-session memory loop, end to end.
+18. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## Research (design notes)
 

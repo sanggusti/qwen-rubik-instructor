@@ -32,6 +32,14 @@ the Qwen Cloud Hackathon (MemoryAgent track).
 - **Challenge Me** — a full-cube race with Google sign-in, a server-side
   clock (the client never reports its own time), anti-cheat handling, and a
   public leaderboard on the landing page.
+- **Session review canvas** — every narrated solve is captured as it streams
+  and replayed at `/review` as a scroll-scrubbed tour: the scramble, each
+  solver checkpoint with Qwen's original narration and full move notation,
+  through to solved — designed to be followed on a **real physical cube**.
+  Plays hands-free (play/pause/replay), works on the phone, and mirrors to
+  Turso so the review follows you across devices.
+
+![The review canvas replaying a captured solve](./docs/images/review-tour.gif)
 
 ## Quick start
 
@@ -82,7 +90,7 @@ in [the architecture & feature tour](./docs/16-architecture-and-feature-tour.md)
 
 ## Tests
 
-Backend 739 tests · frontend 238 unit tests · 25 Playwright E2E specs
+Backend 747 tests · frontend 260 unit tests · 29 Playwright E2E specs
 (desktop + mobile), running the real stack with the LLM pinned to its
 deterministic fallback — no API bill.
 
@@ -95,8 +103,8 @@ cd backend && .venv/bin/pytest              # backend
 ## Engineering notes
 
 How this was built — the memory design, the curriculum, the grading fixes,
-the SvelteKit rewrite, the E2E strategy, auth, and the deployment — is a
-16-part blog series in [`docs/`](./docs/README.md).
+the SvelteKit rewrite, the E2E strategy, auth, the deployment, and the review
+canvas — is a 17-part blog series in [`docs/`](./docs/README.md).
 
 ## License
 

@@ -17,17 +17,16 @@ test('Qwen generates a playable lesson from the current cube', async ({ page }) 
 
 	// On success the generated lesson is selected and the caption takes over.
 	await expect(page.locator('.stage-title')).toBeVisible({ timeout: 30_000 });
-	await openGuideTab(page, 'Lessons');
-	const counter = page.locator('.lsn-counter');
+	const counter = page.locator('.stage-counter');
 	await expect(counter).toHaveText(/^Step 1 of \d+$/);
 
 	// The generated plan opens with a moves-free intro step (manual validator).
-	await page.locator('.lsn-btn', { hasText: /^Mark complete$/ }).click();
+	await page.locator('.stage-btn', { hasText: /^Mark complete$/ }).click();
 	await expect(counter).toHaveText(/^Step 2 of \d+$/);
 
 	// The lesson is playable: perform this step's expected moves and auto-advance.
-	const movesText = await page.locator('.lsn-moves').innerText();
-	const moves = movesText.replace(/^Moves:\s*/, '').trim().split(/\s+/);
+	const movesText = await page.locator('.stage-move').innerText();
+	const moves = movesText.trim().split(/\s+/);
 	expect(moves.length).toBeGreaterThan(0);
 	await pressMoves(page, moves);
 	await expect(counter).toHaveText(/^Step 3 of \d+$/);

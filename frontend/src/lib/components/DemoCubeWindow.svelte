@@ -4,6 +4,7 @@
   // bottom modal on mobile. Driven entirely by demoStore.
   import * as THREE from 'three';
   import { Canvas, T } from '@threlte/core';
+  import { goto } from '$app/navigation';
   import DemoScene from './DemoScene.svelte';
   import MoveSequenceBar from './MoveSequenceBar.svelte';
   import { demoStore } from '../stores/demo.svelte';
@@ -67,6 +68,10 @@
             disabled={!walkthroughStore.userCubeSolved || progress !== null}
             onclick={() => walkthroughStore.resetUserCubeToCheckpoint()}
           >Reset to checkpoint</button>
+          {#if isSolve}
+            <button class="demo-btn" type="button" onclick={() => goto('/review')}
+              >Review session →</button>
+          {/if}
         </div>
       {/if}
     {:else}

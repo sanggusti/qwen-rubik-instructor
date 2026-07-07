@@ -37,6 +37,8 @@ class Beat(CamelModel):
     dwell_ms: Optional[int] = None
     # 'step' paces moves one-by-one (followable); 'fast' applies them at once (setup).
     pace: Optional[Literal["step", "fast"]] = None
+    # Solver stage id this beat narrates (e.g. "cross"); None for catalog beats.
+    stage: Optional[str] = None
 
 
 class Walkthrough(CamelModel):

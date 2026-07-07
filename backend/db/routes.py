@@ -49,6 +49,11 @@ class AttemptRequest(BaseModel):
     handle: Optional[str] = None
 
 
+class ReviewSyncRequest(BaseModel):
+    userId: str
+    session: dict
+
+
 @router.post("/memory/sync")
 def memory_sync(req: SyncRequest) -> dict:
     persisted = service.sync_profile(
@@ -68,6 +73,23 @@ def memory_get(user_id: str) -> dict:
     if memory is None:
         raise HTTPException(status_code=404, detail="unknown user or persistence disabled")
     return memory
+
+
+@router.post("/review/sync")
+def review_sync(req: ReviewSyncRequest) -> dict:
+    try:
+        persisted = service.save_review_session(req.userId, req.session)
+    except ValueError:
+        raise HTTPException(status_code=413, detail="review session payload too large")
+    return {"ok": True, "persisted": persisted}
+
+
+@router.get("/review/{user_id}")
+def review_get(user_id: str) -> dict:
+    review = service.load_review_session(user_id)
+    if review is None:
+        raise HTTPException(status_code=404, detail="unknown user or persistence disabled")
+    return review
 
 
 @router.post("/attempts")

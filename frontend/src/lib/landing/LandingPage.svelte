@@ -2,9 +2,11 @@
   import { fade } from 'svelte/transition';
   import HeroStage from './HeroStage.svelte';
   import ContentSection from './ContentSection.svelte';
+  import BlogCtaSection from './BlogCtaSection.svelte';
   import ContributorsSection from './ContributorsSection.svelte';
   import LeaderboardSection from './LeaderboardSection.svelte';
   import LandingFooter from './LandingFooter.svelte';
+  import LandingHeader from './LandingHeader.svelte';
   import PlayButton from './PlayButton.svelte';
   import CountUp from './CountUp.svelte';
   import LandingScene from './LandingScene.svelte';
@@ -22,6 +24,42 @@
   let cameraPosition = $state<[number, number, number]>([5, 5, 7]);
   let parkedX = $state(-2.2);
   let heroEl: HTMLElement | null = null;
+
+  const NAV_SECTION_IDS = ['section-play', 'section-challenge', 'section-blogs', 'section-contributors'];
+  let activeSection = $state(NAV_SECTION_IDS[0]);
+  // The header stays transparent (labels only) for as long as the hero's own
+  // scroll-driven animation is still running, and gains its glass background
+  // only once the reader has scrolled past it into the flat content sections.
+  const headerSolid = $derived(heroProgress >= 1);
+
+  function scrollToSection(id: string) {
+    scrollEl?.querySelector(`#${id}`)?.scrollIntoView({
+      behavior: reducedMotion ? 'auto' : 'smooth',
+      block: 'start'
+    });
+  }
+
+  // Scroll-spy: a thin band at the viewport's vertical center decides which
+  // nav item is "active" — the section currently crossing that line.
+  $effect(() => {
+    if (!scrollEl) return;
+    const targets = NAV_SECTION_IDS
+      .map(id => scrollEl?.querySelector<HTMLElement>(`#${id}`))
+      .filter((el): el is HTMLElement => el !== null);
+    if (targets.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        const mostVisible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (mostVisible) activeSection = mostVisible.target.id;
+      },
+      { root: scrollEl, rootMargin: '-45% 0px -45% 0px' }
+    );
+    targets.forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  });
 
   // Measure the real layout (hero runway, section centers and cube sides) and
   // rebuild the scroll→pose timeline. Re-run on resize: breakpoints move
@@ -80,6 +118,7 @@
 </script>
 
 <div class="landing" bind:this={scrollEl} {onscroll} in:fade={{ duration: 600 }}>
+  <LandingHeader active={activeSection} solid={headerSolid} onNavigate={scrollToSection} />
   <LandingScene {progress} {timeline} {reducedMotion} {cameraPosition} {parkedX} />
 
   <div class="content">
@@ -223,6 +262,7 @@
 
   <LeaderboardSection />
 
+  <BlogCtaSection />
   <ContributorsSection />
   <LandingFooter />
   </div>
@@ -234,6 +274,17 @@
     height: 100dvh;
     overflow-y: auto;
     overflow-x: hidden;
+  }
+
+  /* Nav-target sections would otherwise land directly under the fixed
+     LandingHeader after scrollIntoView (block: 'start') — this keeps their
+     heading clear of the overlay on both the floating desktop pill and the
+     full-width mobile bar. */
+  :global(#section-play),
+  :global(#section-challenge),
+  :global(#section-blogs),
+  :global(#section-contributors) {
+    scroll-margin-top: calc(72px + env(safe-area-inset-top, 0px));
   }
 
   /* All copy scrolls above the fixed cube canvas (z-index 0). */

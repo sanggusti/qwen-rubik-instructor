@@ -13,6 +13,10 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	],
+	server: {
+		// The blog imports markdown + media from the repo-root docs/ folder.
+		fs: { allow: ['..'] }
+	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [

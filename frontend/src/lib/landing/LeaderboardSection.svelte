@@ -35,7 +35,7 @@
   }
 </script>
 
-<section class="content-section leaderboard-section">
+<section class="content-section leaderboard-section" id="section-challenge">
   <div class="cube-col" aria-hidden="true"></div>
   <div class="text-col glass-panel">
     {#if loading}

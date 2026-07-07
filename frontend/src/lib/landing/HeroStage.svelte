@@ -15,7 +15,7 @@
 
 <!-- The cube itself lives in the page-level LandingScene canvas; this stage
      only provides the scroll runway and the text overlays. -->
-<div class="hero-stage">
+<div class="hero-stage" id="section-play">
   <div class="hero-sticky">
     <!-- Title overlay — visible at the top, fades out as explosion begins -->
     <div

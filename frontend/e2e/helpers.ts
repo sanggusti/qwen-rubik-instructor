@@ -69,7 +69,7 @@ export async function pressMoves(page: Page, moves: string[]): Promise<void> {
 /** Open the Guide dock (if needed) and click a tab, returning its modal. */
 export async function openGuideTab(
 	page: Page,
-	tab: 'Lessons' | 'Practice' | 'Explore' | 'State' | 'Level'
+	tab: 'Lessons' | 'Practice' | 'Explore' | 'Camera' | 'State' | 'Level'
 ): Promise<Locator> {
 	// An open modal's backdrop covers the tab rail — dismiss it first.
 	const close = page.locator('.modal-close');

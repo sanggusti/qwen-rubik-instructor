@@ -1,21 +1,13 @@
 <script lang="ts">
   import { cubeViewStore } from '../stores/cube-view.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
-  import { cubeStore } from '../stores/cube.svelte';
-  import { profileStore } from '../stores/profile.svelte';
-  import { generateWalkthrough } from '../api/narrate';
-  import { loadReviewSession, recordSolve } from '../review/session';
-  import { syncReviewSession } from '../api/review';
+  import { generateSolveWalkthrough } from '../education/generate';
   import type { CubeletType } from '../scene/cubelets';
-  import { PUBLIC_BACKEND_URL } from '$env/static/public';
 
   let { onPlay, onSelectWalkthrough }: { onPlay?: () => void; onSelectWalkthrough?: () => void } = $props();
 
   let generating = $state(false);
   let generateStatus = $state('');
-
-  let BASE_URL = PUBLIC_BACKEND_URL ? PUBLIC_BACKEND_URL 
-    : 'http://localhost:8000'; // Fallback for local development
 
   const HIGHLIGHTS: { type: CubeletType | null; label: string }[] = [
     { type: 'center', label: 'Centres' },
@@ -58,32 +50,8 @@
 
   async function runGenerate(): Promise<void> {
     generating = true;
-    generateStatus = 'Asking Qwen to plan your solve…';
     try {
-      const wt = await generateWalkthrough({
-        state: cubeStore.getState(),
-        level: profileStore.profile.level,
-        method: profileStore.profile.method,
-        memory: profileStore.memoryDigest(),
-        userId: profileStore.profile.sessionId,
-        onProgress: (done, total) => {
-          generateStatus = `Generating narration… beat ${done} of ${total}`;
-        }
-      });
-      walkthroughStore.loadGenerated(wt);
-      // Capture for the /review canvas (localStorage), then best-effort
-      // mirror to the backend so it follows the learner across devices.
-      recordSolve(wt, profileStore.profile.level, profileStore.profile.method);
-      const captured = loadReviewSession();
-      if (captured?.solve) {
-        void syncReviewSession(profileStore.profile.sessionId, captured);
-      }
-      profileStore.appendHistory({
-        kind: 'walkthrough',
-        method: profileStore.profile.method,
-        stages: wt.beats.length,
-        at: new Date().toISOString()
-      });
+      await generateSolveWalkthrough((msg) => (generateStatus = msg));
       onPlay?.();
     } catch (err) {
       generateStatus = `Couldn't generate: ${(err as Error).message}`;

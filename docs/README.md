@@ -167,14 +167,32 @@ model calls and in-browser checks confirming the end-to-end loop.
     tapping Pause un-paused itself, and nine "pre-existing" E2E failures
     root-caused to selectors a UI revamp had deleted.
 
+18. **[The cube in your hands: camera scanning without a vision bill](./18-the-cube-in-your-hands-camera-scanning-without-a-vision-bill.md)**
+    The physical cube becomes an input device. A feasibility audit kills live
+    move-tracking with arithmetic (40–80 scan gestures per solve; one move in
+    six invisible to a single face) and replaces it with scan once /
+    trust-advance / verify at checkpoints / infer only to explain mistakes.
+    A pure-function CV pipeline built against image fixtures before any
+    camera code (median ROI sampling, center-anchored CIEDE2000, the 1-in-12
+    legality math with a TS↔Python mirror), Qwen-VL scoped to a rate-limited
+    second opinion, a sleeping-camera lifecycle, and the Svelte each-key
+    collision that froze the UI while the stores kept moving.
+
 ## Still to come (intentions, not yet code)
 
 The MemoryAgent submission also requires infrastructure and storytelling that
 lives outside the app, tracked as the next posts:
 
-18. **The 3-minute demo** — the cross-session memory loop, end to end.
+19. **The 3-minute demo** — the cross-session memory loop, end to end.
 
 ## Research (design notes)
+
+- **[Physical cube play: camera scanning, state mapping, guided tracking](./research/physical-cube-camera-play.md)**
+  The design note that became Part 18, including the three-lens feasibility
+  audit (human experience, integration, phone performance) that killed the
+  per-move scanning model, the vision-stack comparison (classical CV vs
+  Qwen-VL vs in-browser ML), and the phased P0–P4 roadmap. Implemented
+  through P3.
 
 - **[Turso (libSQL) as the persistent-memory layer](./research/turso-persistent-memory.md)**
   The design note that became Part 13: the case for Turso and a low-blast-radius

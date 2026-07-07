@@ -22,6 +22,9 @@ class ChallengeStore {
     cubeStore.onScramble(() => {
       if (!this.scrambling) this.cancel();
     });
+    // A scanned-in state could otherwise fake a solve (loadState sets state
+    // directly with isBusy false) — treat it exactly like an external reset.
+    cubeStore.onLoadState(() => this.cancel());
   }
 
   /** Scramble the cube; the play page starts the clock once isBusy clears. */

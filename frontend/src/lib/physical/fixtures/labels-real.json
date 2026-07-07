@@ -1,0 +1,16 @@
+[
+  {
+    "file": "real/qbr-real-U.png",
+    "source": "qbr (github.com/kkoomen/qbr, MIT) demo-solve-mode.jpg, face crop",
+    "face": "U",
+    "cells": "BUDRULFDL",
+    "notes": "Webcam photo; thin green qbr overlay outlines on stickers (median sampling must reject them)."
+  },
+  {
+    "file": "real/qbr-real-D.png",
+    "source": "qbr (github.com/kkoomen/qbr, MIT) demo-calibrate-mode-success.jpg, face crop",
+    "face": "D",
+    "cells": "DDDDDDDDD",
+    "notes": "Solid yellow face with a horizontal glare band across the top row."
+  }
+]

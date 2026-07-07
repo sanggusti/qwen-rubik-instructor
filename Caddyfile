@@ -3,5 +3,10 @@
 }
 
 api.{$DOMAIN} {
+    # /scan/assist uploads face crops; the app enforces a per-image cap, this
+    # is just an edge backstop.
+    request_body {
+        max_size 10MB
+    }
     reverse_proxy backend:8000
 }

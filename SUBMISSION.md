@@ -2,7 +2,9 @@
 
 An interactive 3D Rubik's Cube tutor where **Qwen teaches on a cube it can
 actually see** — generated lessons from your live cube state, narrated solves,
-grounded hints, and a memory that remembers (and forgets) how you're doing.
+grounded hints, a memory that remembers (and forgets) how you're doing, and a
+camera that scans the real cube in your hands so the tutor can teach on that
+one too.
 
 **Live at [rubik.suryatresna.asia](https://rubik.suryatresna.asia)** · Qwen
 Cloud Hackathon, MemoryAgent track · engineering log in [`docs/`](./docs/README.md)
@@ -68,6 +70,26 @@ on top of that cube:
 
 ![A full challenge run: timer, solve, confetti, leaderboard](./docs/images/challenge-me-run.gif)
 
+- **Bring your own cube** — point your camera at a real scrambled cube and
+  the app scans it in: six guided captures with auto-capture when you hold
+  still, then a guided solve of the *physical* cube in your hands. You
+  confirm moves in 3–6 move chunks while the camera sleeps; at stage
+  checkpoints it wakes, verifies your actual cube, and when a check fails a
+  bounded search *explains* what went wrong instead of just saying "wrong."
+
+![Scanning a real cube, six faces in under a minute](./docs/images/physical-scan.gif)
+
+![Guided solve of the physical cube with checkpoint verification](./docs/images/physical-guided.gif)
+
+- **Session review canvas** — every narrated solve is captured as it streams
+  and replayed at `/review` as a scroll-scrubbed tour: the scramble, each
+  checkpoint with its original narration, and the full move notation (never
+  windowed), designed to be followed on a real physical cube. Plays
+  hands-free, works on the phone, and mirrors to Turso so a fresh device
+  still has your last solve.
+
+![The review canvas touring a captured solve](./docs/images/review-tour.gif)
+
 ## How we built it
 
 One rule shaped the whole system: **deterministic skeleton, generative skin.**
@@ -103,18 +125,42 @@ starts by minting a single-use session key with a server timestamp, and the
 score is computed server-side when the key is redeemed. The client never
 reports its own time.
 
+The camera scanning has no vision bill: the scanner is classical CV running
+entirely on-device — median sampling per grid cell, LAB + CIEDE2000 color
+classification calibrated against the cube's own six center stickers so it
+survives auto-white-balance drift — built as pure functions and tested
+against a 72-render fixture corpus before any camera code existed. A
+~150-line group-theory legality validator (mirrored line-for-line in
+TypeScript and Python, pinned by a frozen cross-validation fixture) rejects
+impossible scans and points at the exact suspect stickers. Qwen-VL, via the
+backend's only vision endpoint (`POST /scan/assist`), is scoped as a *second
+opinion only* on low-confidence cells — its suggestions stay user-confirmable
+grid edits, and the validator has the last word.
+
+![The physical cube as an input device](./docs/diagrams/10-physical-cube-scan.png)
+
+The review canvas captures rather than regenerates — narration runs at
+temperature 0.7, so the words are never reproducible — and its trust boundary
+is the compiler: `compileReview` validates every captured move, replays the
+sequence from solved, and proves it lands solved, or compiles to nothing.
+There is no way to ship a review that lies about solving the cube. The canvas
+itself reuses the landing page's scroll-scrubbed WebGL cube and the memory
+system's Turso mirror pattern.
+
+![Review capture, compile, and replay data path](./docs/diagrams/09-review-canvas.png)
+
 Everything ships as three containers (Caddy with automatic HTTPS, an nginx
 frontend, a uvicorn backend) on an Alibaba Cloud Simple Application Server,
 with a tag-to-deploy pipeline.
 
 ![Deployment: one box, three containers on Alibaba Cloud](./docs/diagrams/07-deployment.png)
 
-And it's tested like we mean it: 739 backend tests, 238 frontend unit tests,
-and 25 end-to-end browser specs that play the whole game — scramble, stream a
+And it's tested like we mean it: 817 backend tests, 375 frontend unit tests,
+and 34 end-to-end browser specs that play the whole game — scramble, stream a
 narrated solve, assert the cube ends solved — with the LLM pinned to its
 deterministic fallback so the suite costs nothing to run. The full set of
 diagrams (narration pipeline, hint flows, challenge/auth sequence, data model)
-lives in [`docs/diagrams/`](./docs/diagrams/), and the sixteen-part build log
+lives in [`docs/diagrams/`](./docs/diagrams/), and the eighteen-part build log
 in [`docs/`](./docs/README.md).
 
 ## Challenges we ran into
@@ -143,6 +189,17 @@ in [`docs/`](./docs/README.md).
   restores the solved state — so during a timed challenge run, Reset was an
   instant win. Anything the challenge didn't initiate now cancels the run,
   and the HUD strips down to a timer and a "Give Up!" button.
+- **The scan that was impossible 11 times out of 12.** Counting nine stickers
+  of each color isn't validation — a random such state is actually solvable
+  with probability 1/12, and scan errors kept dying deep in the solver as an
+  opaque HTTP 422. A group-theory legality validator moved the check to the
+  scan itself, pointing at the exact suspect stickers ("these look swapped")
+  without ever saying "parity."
+- **The feature we didn't build.** Live camera move-tracking died to
+  arithmetic before any code: a beginner solve is 80–120 turns, each scan
+  gesture costs 5–10 seconds, and a single face shows 9 of 54 stickers — one
+  move in six is invisible. Inverting the trust model — scan once, trust by
+  default, verify at checkpoints — *was* the design.
 - **Testing an LLM app without an API bill.** The E2E suite runs the *real*
   stack — real solver, real streaming — with the model calls pointed at an
   unroutable address so the deterministic fallback narrates. The browser found
@@ -159,11 +216,15 @@ in [`docs/`](./docs/README.md).
   reflects what you actually did last time.
 - **A leaderboard you can believe**, because the clock lives on the server
   and a solve can't be faked with a Reset.
-- **A thousand tests around one boundary** — 739 + 238 + 25 across two
+- **The cube in your hands, with no vision bill** — a real cube scanned by
+  classical CV running entirely on-device, free and instant on the happy
+  path, with Qwen-VL reserved as a second opinion for genuinely ambiguous
+  stickers (red vs orange in dim light).
+- **Over a thousand tests around one boundary** — 817 + 375 + 34 across two
   languages, including a cross-validated cube engine ported bit-for-bit.
 - **It's live** — three containers on Alibaba Cloud behind automatic HTTPS at
   [rubik.suryatresna.asia](https://rubik.suryatresna.asia), with the whole
-  journey written up as a sixteen-part engineering log.
+  journey written up as an eighteen-part engineering log.
 
 ![The public challenge leaderboard on the landing page](./docs/images/landing-leaderboard-live.png)
 
@@ -183,9 +244,16 @@ in [`docs/`](./docs/README.md).
 - **A green suite isn't the finish line.** After the E2E suite passed, a
   human pass and phone emulation each found bugs the green suite couldn't —
   the browser, and then the human, remain the last two test layers.
+- **Do the arithmetic before the feature.** The strongest design decision in
+  the camera work was the one ruled out on paper — live move-tracking lost to
+  a back-of-the-envelope estimate before a line of code was written.
 
 ## What's next for Rubik Instructor
 
+- **Deepen the physical-cube loop.** Scanning and guided checkpoints work
+  end to end; next is making the repair ladder smarter — richer beginner
+  error models, better "show me what I did wrong" explanations, and a
+  smoother re-scan when a solve goes truly sideways.
 - **More courses.** The layer-by-layer beginner track is complete and
   verified; next come the speedcubing tracks — F2L, OLL, PLL — authored the
   same way: every algorithm machine-checked, every lesson narrated from the

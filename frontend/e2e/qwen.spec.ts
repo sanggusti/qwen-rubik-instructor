@@ -33,6 +33,9 @@ test('Qwen generates a playable lesson from the current cube', async ({ page }) 
 });
 
 test('Solve my cube (Qwen) narrates a solve and actually solves the cube', async ({ page }) => {
+	// SSE generation + a ~100-move apply + ~100-move undo: ~53s alone, over
+	// the default 60s under parallel-suite CPU contention.
+	test.setTimeout(120_000);
 	await gotoPlay(page);
 	await fastMoves(page);
 	await pressMoves(page, SCRAMBLE);

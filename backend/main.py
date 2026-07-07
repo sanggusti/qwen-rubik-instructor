@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from auth import routes as auth_routes
 from challenge import routes as challenge_routes
+from scan import routes as scan_routes
 from config import settings
 from db import database, routes as db_routes, service
 from narrative import planner
@@ -26,6 +27,7 @@ from narrative.llm_narrator import answer_question, narrate_plan
 from narrative.merge import beat_from, step_from
 from narrative.schema import VisualPlan
 from pipeline.cube.facelet import State, is_well_formed
+from pipeline.cube.legality import LEGALITY_DETAILS, check_legality
 from pipeline.solver import solve
 
 # Surface the "narration" telemetry logger (per-call latency/tokens, per-plan
@@ -43,6 +45,7 @@ app = FastAPI(title="Qwen Rubik Instructor", lifespan=lifespan)
 app.include_router(db_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(challenge_routes.router)
+app.include_router(scan_routes.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -103,6 +106,20 @@ def topics() -> dict:
     return {"walkthrough": planner.topic_ids(), "lesson": lesson_topics}
 
 
+def _require_legal_state(state: State) -> None:
+    """400 with a face-specific reason instead of an opaque solver 422."""
+    if not is_well_formed(state):
+        raise HTTPException(status_code=400, detail="malformed cube state")
+    ok, code, suspects = check_legality(state)
+    if not ok:
+        faces = sorted({s["face"] for s in suspects})
+        where = f" (check the {', '.join(faces)} side{'s' if len(faces) > 1 else ''})" if faces else ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"impossible cube state: {LEGALITY_DETAILS[code]}{where}",
+        )
+
+
 def _build_plan(kind: str, req: NarrateRequest) -> VisualPlan:
     method = _resolve_method(req)
     if req.topic:
@@ -111,8 +128,7 @@ def _build_plan(kind: str, req: NarrateRequest) -> VisualPlan:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
     if req.state is not None:
-        if not is_well_formed(req.state):
-            raise HTTPException(status_code=400, detail="malformed cube state")
+        _require_legal_state(req.state)
         try:
             return planner.plan(kind, state=req.state, method=method)
         except Exception as exc:  # solver rejects an unsolvable state
@@ -200,8 +216,7 @@ class SolveRequest(BaseModel):
 
 @app.post("/solve")
 def solve_cube(req: SolveRequest) -> dict:
-    if not is_well_formed(req.state):
-        raise HTTPException(status_code=400, detail="malformed cube state")
+    _require_legal_state(req.state)
     try:
         stages = solve(req.state)
     except Exception as exc:  # solver rejects an unsolvable state

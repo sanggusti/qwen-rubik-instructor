@@ -37,6 +37,8 @@ services:
       CORS_ORIGINS: '["https://${DOMAIN}"]'
       TURSO_DATABASE_URL: ${TURSO_DATABASE_URL}
       TURSO_AUTH_TOKEN: ${TURSO_AUTH_TOKEN:-}
+      # Qwen-VL fallback for physical-cube sticker reads (/scan/assist).
+      QWEN_VL_MODEL: ${QWEN_VL_MODEL:-qwen3-vl-plus}
     volumes:
       - db_data:/app/data
     restart: unless-stopped

@@ -8,6 +8,7 @@
   import DemoScene from './DemoScene.svelte';
   import MoveSequenceBar from './MoveSequenceBar.svelte';
   import { demoStore } from '../stores/demo.svelte';
+  import { physicalStore } from '../stores/physical.svelte';
   import { walkthroughStore } from '../stores/walkthrough.svelte';
 
   const eyebrow = $derived(demoStore.source === 'walkthrough' ? 'Walkthrough' : 'Show me how');
@@ -54,7 +55,11 @@
     </div>
 
     {#if demoStore.source === 'walkthrough'}
-      {#if walkthroughStore.hasUserMoves()}
+      <!-- "Solve my cube"/"Reset to checkpoint" drive the LIVE cube from
+           wherever it currently is — in a physical session that would desync
+           the mirror from the real cube, so they hide behind the read-along
+           flow instead. -->
+      {#if walkthroughStore.hasUserMoves() && !physicalStore.active}
         <div class="demo-actions">
           <button
             class="demo-btn"

@@ -6,6 +6,7 @@
   import TouchMovePad from '$lib/components/TouchMovePad.svelte';
   import StageCaption from '$lib/components/StageCaption.svelte';
   import DemoCubeWindow from '$lib/components/DemoCubeWindow.svelte';
+  import PhysicalCameraWindow from '$lib/components/PhysicalCameraWindow.svelte';
   import HudBar from '$lib/components/HudBar.svelte';
   import AuthModal from '$lib/components/AuthModal.svelte';
   import ChallengeButton from '$lib/components/ChallengeButton.svelte';
@@ -17,6 +18,7 @@
   import { cubeStore } from '$lib/stores/cube.svelte';
   import { authStore } from '$lib/auth/store.svelte';
   import { challengeStore, CHALLENGE_SCRAMBLE_LENGTH } from '$lib/stores/challenge.svelte';
+  import { physicalStore } from '$lib/stores/physical.svelte';
   import { startChallenge, submitScore } from '$lib/api/challenge';
   import { recordScramble } from '$lib/review/session';
 
@@ -32,6 +34,7 @@
     const w = window as unknown as Record<string, unknown>;
     w.__cubeStore = cubeStore;
     w.__challengeStore = challengeStore;
+    w.__physicalStore = physicalStore;
   }
 
   // Only one experience runs at a time, so the stage caption has a single
@@ -189,6 +192,7 @@
   const hintVisible = $derived(
     !hintDismissed &&
       !keypadOpen &&
+      !physicalStore.active &&
       lessonStore.snapshot.lesson === null &&
       practiceStore.snapshot.drill === null &&
       walkthroughStore.snapshot.walkthrough === null
@@ -209,9 +213,10 @@
   <CubeMesh />
 </CubeCanvas>
 
-<TouchMovePad open={keypadOpen} onClose={() => (keypadOpen = false)} />
+<TouchMovePad open={keypadOpen && !physicalStore.active} onClose={() => (keypadOpen = false)} />
 <StageCaption raised={keypadOpen} />
 <DemoCubeWindow />
+<PhysicalCameraWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} {onChallenge} {onGiveUp} />
 {#if challengeStore.status === 'idle' || challengeStore.status === 'solved'}
   <ChallengeButton layout="mobile" onclick={onChallenge} />

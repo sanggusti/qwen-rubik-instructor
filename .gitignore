@@ -225,3 +225,4 @@ node_modules/
 backend/data/
 
 .claude/settings.json
+footage/

@@ -37,8 +37,9 @@ export const SCAN_CUES: Record<FaceKey, { hold: string; center: string }> = {
 
 // Nominal sticker colors for the coarse center check during scanning
 // (full anchored classification needs all six centers, which we only have
-// at the end). Same palette as the synthetic fixture generator.
-const NOMINAL: Record<FaceKey, Lab> = {
+// at the end). Same palette as the synthetic fixture generator. Exported as
+// the fallback anchor set for guided-mode checkpoints in manual sessions.
+export const NOMINAL_ANCHORS: Record<FaceKey, Lab> = {
   U: rgbToLab(245, 245, 245),
   D: rgbToLab(240, 210, 40),
   L: rgbToLab(255, 120, 30),
@@ -138,8 +139,8 @@ export class ScanMachine {
     // Coarse center check against nominal colors.
     let detected: FaceKey = 'U';
     let best = Infinity;
-    for (const f of Object.keys(NOMINAL) as FaceKey[]) {
-      const d = ciede2000(labs[4], NOMINAL[f]);
+    for (const f of Object.keys(NOMINAL_ANCHORS) as FaceKey[]) {
+      const d = ciede2000(labs[4], NOMINAL_ANCHORS[f]);
       if (d < best) {
         best = d;
         detected = f;

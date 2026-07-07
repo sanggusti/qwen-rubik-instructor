@@ -10,12 +10,16 @@
 import { chime, buzz, tick } from '../physical/audio';
 import { attachStillness, openCamera } from '../physical/camera';
 import type { CameraWindow } from '../physical/camera';
+import { classifyFace } from '../physical/color-classify';
+import { explainDiff } from '../physical/infer-moves';
+import type { Explanation } from '../physical/infer-moves';
 import { centeredGrid, sampleGrid } from '../physical/sampler';
-import { SCAN_CUES, ScanMachine } from '../physical/scan-machine';
+import { NOMINAL_ANCHORS, SCAN_CUES, ScanMachine } from '../physical/scan-machine';
 import type { ScanPhase } from '../physical/scan-machine';
 import type { StickerRef } from '../physical/legality';
 import type { Color, FaceKey, State } from '../cube/state';
-import type { Lab, RGBAImage } from '../physical/types';
+import type { FaceScan, Lab, RGBAImage } from '../physical/types';
+import { generateSolveWalkthrough } from '../education/generate';
 import { cubeStore } from './cube.svelte';
 
 // Fraction of the shorter video side the on-screen 3x3 overlay covers.
@@ -123,17 +127,147 @@ class PhysicalStore {
       chime();
       this.persistAnchors();
       cubeStore.loadState(res.state);
+      if (this.replanOnReady) {
+        // Repair ladder: the re-scan finished — regenerate the solve from
+        // wherever the physical cube actually is.
+        this.replanOnReady = false;
+        void generateSolveWalkthrough();
+      }
     } else {
       buzz();
     }
     this.sync();
   }
 
-  /** Read-along advance: apply the current beat's moves to the mirror. */
+  /** Read-along advance: apply the confirmed chunk's moves to the mirror. */
   confirmMoves(moves: string[]): void {
     if (!this.active) return;
     cubeStore.applyMoves(moves);
     tick();
+  }
+
+  // --- Guided verification (docs §6.2 tiers 2-4) ---------------------------
+  // The mirror IS the predicted state, so a checkpoint is subset equality of
+  // whatever faces the learner presents; a mismatch runs diff-explain (BFS
+  // <=2 from the prediction) and then the repair ladder.
+
+  verifyState: 'idle' | 'collecting' | 'passed' | 'mismatch' = $state('idle');
+  verifyCollected: FaceScan[] = $state([]);
+  verifyNeeded: number = $state(2);
+  explanation: Explanation | null = $state(null);
+  verifyHint: string | null = $state(null);
+  private verifyExpectedNext: string[] = [];
+  private replanOnReady = false;
+
+  /** Session anchors for single-face classification during checkpoints. */
+  private checkpointAnchors(): Record<FaceKey, Lab> {
+    const centers = this.machine.centerSamples();
+    if (Object.keys(centers).length === 6) return centers as Record<FaceKey, Lab>;
+    if (this.storage) {
+      try {
+        const stored = this.storage.getItem(ANCHOR_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Record<FaceKey, Lab>;
+          if (Object.keys(parsed).length === 6) return parsed;
+        }
+      } catch {
+        // fall through to nominal
+      }
+    }
+    return NOMINAL_ANCHORS;
+  }
+
+  /**
+   * Start a verification window: the learner presents `needed` distinct
+   * sides; each is compared against the mirror. `expectedNext` biases
+   * diff-explain toward the moves the walkthrough expects next.
+   */
+  async startVerify(needed = 2, expectedNext: string[] = []): Promise<void> {
+    if (!this.active || this.cameraOpen) return;
+    this.verifyState = 'collecting';
+    this.verifyCollected = [];
+    this.verifyNeeded = needed;
+    this.explanation = null;
+    this.verifyHint = null;
+    this.verifyExpectedNext = expectedNext;
+    try {
+      this.camera = await openCamera('user');
+      this.videoEl = this.camera.video;
+      this.mirrored = this.camera.mirrored;
+      this.cameraOpen = true;
+      this.detachStillness = attachStillness(this.camera, {
+        onSteady: (frame) => this.handleVerifyFrame(frame)
+      });
+    } catch {
+      this.verifyState = 'idle';
+      this.errorMessage = 'Could not open the camera for the check.';
+    }
+  }
+
+  dismissVerify(): void {
+    this.stopCamera();
+    this.verifyState = 'idle';
+    this.verifyCollected = [];
+    this.explanation = null;
+    this.verifyHint = null;
+  }
+
+  /** Repair-ladder last resort: full re-scan, then regenerate the solve. */
+  async rescanAndReplan(): Promise<void> {
+    this.dismissVerify();
+    this.replanOnReady = true;
+    await this.beginScan();
+  }
+
+  private handleVerifyFrame(frame: RGBAImage): void {
+    if (this.verifyState !== 'collecting') return;
+    const grid = centeredGrid(frame.width, frame.height, OVERLAY_COVERAGE);
+    let labs = sampleGrid(frame, grid);
+    if (this.mirrored) labs = mirrorColumns(labs);
+
+    const scan = classifyFace(labs, this.checkpointAnchors());
+    if (this.verifyCollected.some((s) => s.face === scan.face)) {
+      this.showFlash({
+        face: scan.face,
+        cells: null,
+        ok: false,
+        message: 'Got that side already — show me a different one.'
+      });
+      return;
+    }
+
+    const predicted = cubeStore.getState();
+    const observed = [...this.verifyCollected, scan];
+    const explanation = explainDiff(observed, predicted, this.verifyExpectedNext);
+
+    if (explanation && explanation.moves.length === 0) {
+      // This side matches the prediction.
+      this.verifyCollected = observed;
+      if (observed.length >= this.verifyNeeded) {
+        chime();
+        this.stopCamera();
+        this.verifyState = 'passed';
+      } else {
+        tick();
+        this.showFlash({
+          face: scan.face,
+          cells: null,
+          ok: true,
+          message: 'That side checks out — show me one more.'
+        });
+      }
+      return;
+    }
+
+    // Mismatch: close the scan window and explain what we can.
+    buzz();
+    this.stopCamera();
+    this.verifyState = 'mismatch';
+    this.explanation = explanation;
+    this.verifyHint =
+      explanation && explanation.moves.length > 0
+        ? `Your cube looks one step off — it matches if you had done "${explanation.moves.join(' ')}". To get back on track, turn: ${explanation.undo.join(' ')}, then check again.`
+        : "Your cube doesn't match where the walkthrough thinks you are. Undo your last turns and check again — or re-scan and I'll re-plan from wherever you are.";
   }
 
   endSession(): void {
@@ -141,6 +275,11 @@ class PhysicalStore {
     this.machine.end();
     this.active = false;
     this.flash = null;
+    this.verifyState = 'idle';
+    this.verifyCollected = [];
+    this.explanation = null;
+    this.verifyHint = null;
+    this.replanOnReady = false;
     if (this.flashTimer) clearTimeout(this.flashTimer);
     this.sync();
   }

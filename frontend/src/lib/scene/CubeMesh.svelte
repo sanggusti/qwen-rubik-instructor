@@ -100,6 +100,14 @@
   });
 
 
+  // On phones during a physical session the DEMO cube is the primary visual
+  // (it shows what to do next); the mirror demotes to a small confirmation
+  // thumbnail near the top so the coach card and camera window get the space.
+  const coarsePointer =
+    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const PHYSICAL_MOBILE_SCALE = 0.5;
+  const PHYSICAL_MOBILE_SHIFT_Y = 2.8;
+
   // Y shift (world units) while the Guide modal is open on any device.
   const MODAL_CUBE_SHIFT_Y = 1.2;
   // Desktop: StageCaption lives at left:57%, so the free area is 0–57%.
@@ -135,15 +143,19 @@
       ? DESKTOP_STAGE_SHIFT_X
       : 0;
 
-    // Y: Guide-modal shift > mobile-stage shift > default (0).
-    const targetY = demoStore.modalOpen
+    const physicalMobile = coarsePointer && physicalStore.active;
+
+    // Y: physical-mobile thumbnail > Guide-modal shift > mobile-stage shift.
+    const targetY = physicalMobile
+      ? PHYSICAL_MOBILE_SHIFT_Y
+      : demoStore.modalOpen
       ? MODAL_CUBE_SHIFT_Y
       : mobileStageActive
       ? MOBILE_STAGE_SHIFT_Y
       : 0;
 
-    // Scale: shrink on mobile with stage open; full size otherwise.
-    const targetScale = mobileStageActive ? MOBILE_STAGE_SCALE : 1;
+    // Scale: thumbnail in physical mode on phones; shrink with mobile stage.
+    const targetScale = physicalMobile ? PHYSICAL_MOBILE_SCALE : mobileStageActive ? MOBILE_STAGE_SCALE : 1;
 
     const lerping =
       Math.abs(targetX - cube.root.position.x) > 0.002 ||

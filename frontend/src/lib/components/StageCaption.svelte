@@ -7,6 +7,7 @@
   import { physicalStore } from '../stores/physical.svelte';
   import { profileStore } from '../stores/profile.svelte';
   import { askQwen } from '../api/narrate';
+  import { segmentBeat, slicePhrases } from '../physical/chunking';
 
   let { raised = false }: { raised?: boolean } = $props();
 
@@ -35,21 +36,37 @@
   let displayedBody = $state('');
   let lastKey = '';
 
-  // Physical read-along: which beats the learner has already confirmed, so a
-  // beat's moves are applied to the mirror exactly once (also survives
-  // navigating back with Prev). Reset when a new walkthrough loads.
+  // Physical read-along: beats are performed in 3-6 move chunks (segmentBeat)
+  // and each chunk's moves are applied to the mirror exactly once on
+  // confirmation. Confirmed-beat tracking survives navigating back with Prev;
+  // everything resets when a new walkthrough loads.
   let confirmedBeats = $state(new Set<number>());
   let confirmedFor = $state<string | null>(null);
+  let chunkKey = $state('');
+  let chunkPos = $state(0);
 
-  function confirmBeat(beatIndex: number, moves: string[], last: boolean): void {
+  function confirmChunk(
+    beatKey: string,
+    beatIndex: number,
+    moves: string[],
+    pos: number,
+    chunkCount: number,
+    last: boolean
+  ): void {
+    physicalStore.confirmMoves(moves);
+    if (pos + 1 < chunkCount) {
+      chunkKey = beatKey;
+      chunkPos = pos + 1;
+      return;
+    }
     const id = walkthroughStore.snapshot.walkthrough?.id ?? null;
     if (confirmedFor !== id) {
       confirmedBeats = new Set();
       confirmedFor = id;
     }
-    if (confirmedBeats.has(beatIndex)) return;
     confirmedBeats = new Set(confirmedBeats).add(beatIndex);
-    physicalStore.confirmMoves(moves);
+    chunkKey = '';
+    chunkPos = 0;
     if (!last) walkthroughStore.next();
   }
 
@@ -120,7 +137,7 @@
   }
 </script>
 
-{#if active}
+{#if active && !physicalStore.cameraOpen}
   <div class="stage is-open" class:demo-open={demoStore.open} class:raised class:lesson-owner={active.owner === 'lesson'}>
     <button class="stage-close" type="button" aria-label="End" onclick={close}>×</button>
     <div class="stage-title">{active.title}</div>
@@ -180,16 +197,44 @@
              instructions) so it only offers Start. -->
         {@const s = walkthroughStore.snapshot}
         {#if s.beat.moves?.length && s.beatIndex > 0 && !beatConfirmed(s.beatIndex)}
-          <div class="stage-move physical-moves">{s.beat.moves.join(' ')}</div>
+          {@const chunks = segmentBeat(s.beat.moves)}
+          {@const beatKey = `${s.walkthrough.id}:${s.beatIndex}`}
+          {@const pos = Math.min(chunkKey === beatKey ? chunkPos : 0, chunks.length - 1)}
+          {@const chunk = chunks[pos]}
+          <div class="stage-move physical-moves">{chunk.moves.join(' ')}</div>
+          {#if chunks.length > 1}
+            <div class="stage-counter">Part {pos + 1} of {chunks.length}</div>
+          {/if}
+          {#each slicePhrases(chunk.moves) as hint (hint)}
+            <p class="stage-slice-hint">{hint}</p>
+          {/each}
           <div class="stage-actions">
             <button
               type="button"
               class="stage-btn emphasis"
-              onclick={() => confirmBeat(s.beatIndex, s.beat.moves ?? [], s.beatIndex >= s.beatCount - 1)}
+              onclick={() =>
+                confirmChunk(
+                  beatKey,
+                  s.beatIndex,
+                  chunk.moves,
+                  pos,
+                  chunks.length,
+                  s.beatIndex >= s.beatCount - 1
+                )}
             >I did these on my cube ✓</button>
+            <button
+              type="button"
+              class="stage-btn"
+              onclick={() => physicalStore.startVerify(2, chunk.moves)}
+            >📷 Check my cube</button>
           </div>
         {:else if s.beatIndex > 0 && beatConfirmed(s.beatIndex) && s.beatIndex >= s.beatCount - 1}
           <div class="stage-status done">Walkthrough complete ✓</div>
+          <div class="stage-actions">
+            <button type="button" class="stage-btn" onclick={() => physicalStore.startVerify(2)}>
+              📷 Check my cube
+            </button>
+          </div>
         {:else if s.beatIndex < s.beatCount - 1}
           <!-- Intro beat (its moves are the reconstructed scramble, not
                instructions) or a text-only beat: plain advance. -->
@@ -197,6 +242,11 @@
             <button type="button" class="stage-btn" onclick={() => walkthroughStore.next()}>
               {s.beatIndex === 0 ? 'Start →' : 'Next →'}
             </button>
+            {#if s.beatIndex > 0}
+              <button type="button" class="stage-btn" onclick={() => physicalStore.startVerify(2)}>
+                📷 Check my cube
+              </button>
+            {/if}
           </div>
         {/if}
       {:else if active.move}
@@ -300,6 +350,11 @@
     font-size: 26px;
     line-height: 1.35;
     white-space: normal;
+  }
+  .stage-slice-hint {
+    margin: 2px 0 6px;
+    font-size: 12px;
+    color: var(--text-dim);
   }
   .stage-move {
     margin-top: 6px;

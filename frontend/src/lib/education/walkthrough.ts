@@ -6,6 +6,7 @@
 
 import { Emitter } from '../cube/events';
 import { invertMove } from '../cube/state';
+import type { State } from '../cube/state';
 import type { CubeletType } from '../scene/cubelets';
 
 export interface Beat {
@@ -24,6 +25,11 @@ export interface Beat {
   pace?: 'step' | 'fast';
   /** Solver stage id this beat narrates (e.g. 'cross'); absent for catalog beats. */
   stage?: string;
+  /**
+   * Exact cube state after this beat's moves (solve beats only) — physical
+   * mode verifies the learner's real cube against it at stage checkpoints.
+   */
+  expectedState?: State | null;
 }
 
 export interface Walkthrough {

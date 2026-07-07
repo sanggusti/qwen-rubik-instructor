@@ -170,6 +170,30 @@ function meanLab(samples: Lab[]): Lab {
   return { L: sum.L / n, a: sum.a / n, b: sum.b / n };
 }
 
+// Classify a single presented face against known anchors (guided-mode
+// checkpoints re-scan one face at a time; the anchors are the session's six
+// captured centers). The face's identity is whichever anchor its center
+// matches. No k-means — 9 samples aren't enough to refine centroids.
+export function classifyFace(
+  labs: Lab[],
+  anchors: Record<FaceKey, Lab>
+): FaceScan {
+  const face = assign(labs[4], anchors).face;
+  const cells: Color[] = [];
+  const confidence: number[] = [];
+  labs.forEach((lab, i) => {
+    if (i === 4) {
+      cells.push(face);
+      confidence.push(1);
+      return;
+    }
+    const a = assign(lab, anchors);
+    cells.push(a.face);
+    confidence.push(a.confidence);
+  });
+  return { face, cells, confidence };
+}
+
 // `samples` holds the 9 Lab reads per face, keyed by the face identity the
 // scan protocol established (each face's center sticker IS that face's
 // anchor). Runs a short k-means over all 54 samples seeded by the anchors,

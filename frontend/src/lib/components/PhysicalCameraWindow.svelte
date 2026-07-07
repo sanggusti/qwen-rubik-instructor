@@ -25,14 +25,19 @@
   const progress = $derived(
     `${Math.min(physicalStore.faceIndex + 1, SCAN_ORDER.length)} of ${SCAN_ORDER.length}`
   );
+  const verifying = $derived(physicalStore.verifyState !== 'idle');
   const open = $derived(
     physicalStore.active &&
       (physicalStore.cameraOpen ||
+        verifying ||
         physicalStore.phase === 'adjust' ||
         physicalStore.phase === 'ready' ||
         physicalStore.phase === 'error')
   );
   const eyebrow = $derived.by(() => {
+    if (physicalStore.verifyState === 'collecting') return 'Checkpoint · show me your cube';
+    if (physicalStore.verifyState === 'passed') return 'Checkpoint · all good';
+    if (physicalStore.verifyState === 'mismatch') return 'Checkpoint · something differs';
     switch (physicalStore.phase) {
       case 'scanning':
       case 'camera-init':
@@ -93,7 +98,10 @@
         <div class="cam-video" use:mountVideo={physicalStore.videoEl}></div>
         <div class="cam-overlay" style:--coverage={`${OVERLAY_COVERAGE * 100}%`}>
           {#each Array.from({ length: 9 }, (_, i) => i) as i (i)}
-            <div class="cam-cell" style:background={i === 4 ? centerTint : 'transparent'}></div>
+            <div
+              class="cam-cell"
+              style:background={!verifying && i === 4 ? centerTint : 'transparent'}
+            ></div>
           {/each}
         </div>
         {#if physicalStore.flash}
@@ -103,21 +111,64 @@
         {/if}
       </div>
 
-      <p class="cam-cue">{physicalStore.cue.hold}</p>
-      <p class="cam-hint">Hold still — it snaps by itself.</p>
+      {#if verifying}
+        <p class="cam-cue">
+          Show me {physicalStore.verifyCollected.length === 0 ? 'any side' : 'another side'} of
+          your cube — {physicalStore.verifyCollected.length} of {physicalStore.verifyNeeded} checked.
+        </p>
+        <p class="cam-hint">Hold still — it snaps by itself.</p>
+        <div class="cam-actions">
+          <button class="cam-btn" type="button" onclick={() => physicalStore.dismissVerify()}
+            >Skip the check</button
+          >
+        </div>
+      {:else}
+        <p class="cam-cue">{physicalStore.cue.hold}</p>
+        <p class="cam-hint">Hold still — it snaps by itself.</p>
 
+        <div class="cam-actions">
+          <button
+            class="cam-btn"
+            type="button"
+            disabled={physicalStore.faceIndex === 0}
+            onclick={() => physicalStore.retake()}>↩ Redo previous side</button
+          >
+          {#if physicalStore.consecutiveRejects >= 3}
+            <button class="cam-btn" type="button" onclick={() => physicalStore.switchToManual()}
+              >Enter colors by hand instead</button
+            >
+          {/if}
+        </div>
+      {/if}
+    {:else if physicalStore.verifyState === 'passed'}
+      <p class="cam-cue">✅ Your cube matches — keep going!</p>
       <div class="cam-actions">
+        <button
+          class="cam-btn primary"
+          type="button"
+          data-testid="verify-continue"
+          onclick={() => physicalStore.dismissVerify()}>Continue</button
+        >
+      </div>
+    {:else if physicalStore.verifyState === 'mismatch'}
+      <p class="cam-warn">{physicalStore.verifyHint}</p>
+      <div class="cam-actions">
+        <button
+          class="cam-btn primary"
+          type="button"
+          data-testid="verify-recheck"
+          onclick={() => physicalStore.startVerify(physicalStore.verifyNeeded)}
+          >I fixed it — check again</button
+        >
         <button
           class="cam-btn"
           type="button"
-          disabled={physicalStore.faceIndex === 0}
-          onclick={() => physicalStore.retake()}>↩ Redo previous side</button
+          data-testid="verify-replan"
+          onclick={() => physicalStore.rescanAndReplan()}>Re-scan &amp; re-plan</button
         >
-        {#if physicalStore.consecutiveRejects >= 3}
-          <button class="cam-btn" type="button" onclick={() => physicalStore.switchToManual()}
-            >Enter colors by hand instead</button
-          >
-        {/if}
+        <button class="cam-btn" type="button" onclick={() => physicalStore.dismissVerify()}
+          >Dismiss</button
+        >
       </div>
     {:else if physicalStore.phase === 'adjust'}
       <p class="cam-cue">

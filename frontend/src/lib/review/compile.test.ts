@@ -95,7 +95,7 @@ describe('compileReview', () => {
             ...beats[beats.length - 1],
             moves: beats[beats.length - 1].moves!.slice(0, -1)
         };
-        expect(compileReview(beats)!.solvedAtEnd).toBe(false);
+        expect(compileReview(beats)).toBeNull();
     });
 
     it('rejects invalid input shapes', () => {

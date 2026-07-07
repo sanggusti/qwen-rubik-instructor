@@ -124,6 +124,31 @@ cd frontend && npx playwright test          # E2E (desktop + mobile)
 cd backend && .venv/bin/pytest              # backend
 ```
 
+## Demo footage
+
+`frontend/e2e/record-footage.spec.ts` (10 desktop clips, 1920×1080) and
+`record-footage-mobile.spec.ts` (4 iPhone 13 clips, 390×664 portrait) drive
+every flow — landing, lessons, drills, Qwen solve, camera scan, guided
+physical solve, authenticated challenge, review replay — at learner pace
+while Playwright records video. They are gated behind `RECORD_FOOTAGE=1` so
+the normal E2E suite never runs them, and they expect pre-started servers so
+the narration is real Qwen (not the test-suite fallback). Point the backend
+at a throwaway DB and seed a member + token for the challenge clip (see
+`auth/session.py::create_token`); recordings land in `test-results/` as
+`.webm` — convert with ffmpeg (`-c:v libx264 -crf 18 -movflags +faststart`)
+into an untracked `footage/` folder.
+
+```bash
+# Terminal 1 — backend with real key, isolated DB
+cd backend && TURSO_DATABASE_URL=data/footage.db .venv/bin/uvicorn main:app --port 8000
+# Terminal 2 — frontend
+cd frontend && PUBLIC_BACKEND_URL=http://127.0.0.1:8000 npm run dev -- --port 5173 --strictPort
+# Terminal 3 — record
+cd frontend
+RECORD_FOOTAGE=1 FOOTAGE_AUTH_TOKEN=<seeded> npx playwright test e2e/record-footage.spec.ts --project=desktop --workers=1
+RECORD_FOOTAGE=1 npx playwright test e2e/record-footage-mobile.spec.ts --project=mobile --workers=1
+```
+
 ## Engineering notes
 
 How this was built — the memory design, the curriculum, the grading fixes,

@@ -85,8 +85,11 @@ export function compileReview(beats: Beat[]): CompiledReview | null {
 
     pushSection('solved', 'Solved', pendingNarration, []);
 
-    const state = solvedState();
-    for (const move of fullSequence) applyMove(state, move);
+const state = solvedState();
+for (const move of fullSequence) applyMove(state, move);
 
-    return { fullSequence, sections, solvedAtEnd: isSolved(state) };
+const solvedAtEnd = isSolved(state);
+if (!solvedAtEnd) return null;
+
+return { fullSequence, sections, solvedAtEnd };
 }

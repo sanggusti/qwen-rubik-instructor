@@ -1,16 +1,9 @@
 import * as THREE from 'three';
 import type { FaceKey } from '../cube/state';
 import { Cubelet } from './cubelets';
+import { FACE_COLORS } from './face-colors';
 
-// Standard Rubik's color scheme.
-export const FACE_COLORS: Record<FaceKey, number> = {
-  U: 0xffffff, // white
-  D: 0xffd500, // yellow
-  L: 0xff8c00, // orange
-  R: 0xc41e3a, // red
-  F: 0x009e60, // green
-  B: 0x0051ba  // blue
-};
+export { FACE_COLORS };
 
 export const CUBIE_SIZE = 1;
 export const CUBIE_GAP = 0.02;

@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as THREE from 'three';
   import { Canvas, T } from '@threlte/core';
-  import { OrbitControls } from '@threlte/extras';
+  import OrbitControls from './OrbitControls.svelte';
   import type { Snippet } from 'svelte';
   import SCENE_CONFIG from '../config/scene-config';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { cubeStore } from '../stores/cube.svelte';
-  import { FACE_COLORS } from '../scene/cube';
+  import { FACE_COLORS } from '../scene/face-colors';
   import type { FaceKey } from '../cube/state';
 
   const FACE_ORDER: FaceKey[] = ['U', 'L', 'F', 'R', 'B', 'D'];

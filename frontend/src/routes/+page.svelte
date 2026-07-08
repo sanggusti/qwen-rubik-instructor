@@ -5,8 +5,8 @@
 
 <svelte:head>
   <title>Rubik Instructor — Learn to Solve the Cube with AI</title>
-  <meta property="og:url" content="https://rubik-instructor.vercel.app/" />
-  <link rel="canonical" href="https://rubik-instructor.vercel.app/" />
+  <meta property="og:url" content="https://rubik.suryatresna.asia/" />
+  <link rel="canonical" href="https://rubik.suryatresna.asia/" />
 </svelte:head>
 
 <LandingPage onPlay={() => goto('/play')} />

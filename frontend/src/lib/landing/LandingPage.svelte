@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import HeroStage from './HeroStage.svelte';
   import ContentSection from './ContentSection.svelte';
@@ -9,13 +10,21 @@
   import LandingHeader from './LandingHeader.svelte';
   import PlayButton from './PlayButton.svelte';
   import CountUp from './CountUp.svelte';
-  import LandingScene from './LandingScene.svelte';
+  import LoadingBar from '../components/LoadingBar.svelte';
   import { buildTimeline, type Timeline } from './timeline';
   import { SCRAMBLE, SOLUTION } from './solve-sequence';
 
   let { onPlay }: { onPlay: () => void } = $props();
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // LandingScene pulls in Three.js/Threlte (~740KB) — loaded lazily so the
+  // rest of the page (header, hero copy, play button) hydrates immediately
+  // even on a slow connection, instead of blocking on that chunk.
+  let LandingSceneComp = $state<typeof import('./LandingScene.svelte')['default'] | null>(null);
+  onMount(async () => {
+    LandingSceneComp = (await import('./LandingScene.svelte')).default;
+  });
 
   let scrollEl = $state<HTMLDivElement | null>(null);
   let heroProgress = $state(0);
@@ -119,7 +128,13 @@
 
 <div class="landing" bind:this={scrollEl} {onscroll} in:fade={{ duration: 600 }}>
   <LandingHeader active={activeSection} solid={headerSolid} onNavigate={scrollToSection} />
-  <LandingScene {progress} {timeline} {reducedMotion} {cameraPosition} {parkedX} />
+  {#if LandingSceneComp}
+    <LandingSceneComp {progress} {timeline} {reducedMotion} {cameraPosition} {parkedX} />
+  {:else}
+    <div class="landing-scene-loading" aria-hidden="true">
+      <LoadingBar label="Loading cube…" />
+    </div>
+  {/if}
 
   <div class="content">
   <HeroStage {heroProgress} {onPlay} />
@@ -291,6 +306,15 @@
   .content {
     position: relative;
     z-index: 1;
+  }
+
+  /* Stand-in for LandingScene's own fixed .scene layer while its chunk loads. */
+  .landing-scene-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: grid;
+    place-items: center;
   }
 
   /* ── Section copy styles ─────────────────────────── */

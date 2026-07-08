@@ -1,11 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import CubeCanvas from '$lib/scene/CubeCanvas.svelte';
-  import CubeMesh from '$lib/scene/CubeMesh.svelte';
+  import PlayCubeStage from '$lib/scene/PlayCubeStage.svelte';
   import TouchMovePad from '$lib/components/TouchMovePad.svelte';
   import StageCaption from '$lib/components/StageCaption.svelte';
-  import DemoCubeWindow from '$lib/components/DemoCubeWindow.svelte';
   import PhysicalCameraWindow from '$lib/components/PhysicalCameraWindow.svelte';
   import HudBar from '$lib/components/HudBar.svelte';
   import AuthModal from '$lib/components/AuthModal.svelte';
@@ -209,13 +207,10 @@
   <meta name="robots" content="noindex" />
 </svelte:head>
 
-<CubeCanvas shiftUp={cubeShiftUp}>
-  <CubeMesh />
-</CubeCanvas>
+<PlayCubeStage shiftUp={cubeShiftUp} />
 
 <TouchMovePad open={keypadOpen && !physicalStore.active} onClose={() => (keypadOpen = false)} />
 <StageCaption raised={keypadOpen} />
-<DemoCubeWindow />
 <PhysicalCameraWindow />
 <HudBar onOpenExperience={closeOthers} {keypadOpen} onToggleKeypad={() => (keypadOpen = !keypadOpen)} {onChallenge} {onGiveUp} />
 {#if challengeStore.status === 'idle' || challengeStore.status === 'solved'}

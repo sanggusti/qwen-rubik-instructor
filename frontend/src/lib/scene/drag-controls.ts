@@ -91,10 +91,10 @@ export function attachDragControls(
   }
 
   // Returns true if the current ndc ray hits within the cube's bounding sphere
-  // expanded by 20%, providing a tolerance zone for near-edge drags.
+  // expanded by 40%, providing a tolerance zone for near-edge drags.
   function isNearCube(): boolean {
     raycaster.setFromCamera(ndc, camera);
-    const radius = 1.5 * Math.sqrt(3) * cube.root.scale.x * 1.2;
+    const radius = 1.5 * Math.sqrt(3) * cube.root.scale.x * 1.4;
     return raycaster.ray.intersectsSphere(new THREE.Sphere(cube.root.position, radius));
   }
 
@@ -175,7 +175,7 @@ export function attachDragControls(
     setPreview(null, 0);
     lastDirKey = null;
 
-    // Cancel if the pointer released outside the cube (plus 20% tolerance).
+    // Cancel if the pointer released outside the cube (plus 40% tolerance).
     ndcFromEvent(ev);
     if (!isNearCube()) {
       pending = null;

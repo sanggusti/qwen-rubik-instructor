@@ -3,6 +3,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# The blog bundles markdown + media from the repo-root docs/ folder (see
+# vite.config.ts fs.allow) — pull it in from the sibling build context.
+COPY --from=docs . /docs
 ARG PUBLIC_BACKEND_URL
 ENV PUBLIC_BACKEND_URL=$PUBLIC_BACKEND_URL
 RUN npm run build

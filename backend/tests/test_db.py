@@ -47,6 +47,56 @@ def test_init_empty_url_disables(temp_db):
     assert not database.enabled()
 
 
+# --- stale-stream reconnect -----------------------------------------------------
+
+class _StaleConn:
+    """Connection whose remote Hrana stream expired (issue #38): every op
+    raises the exact error the deployed libsql client produced."""
+
+    def execute(self, *a, **k):
+        raise ValueError(
+            'Hrana: `api error: `status=404 Not Found, '
+            'body={"error":"stream not found: 90ebf281:a0c6a3"}``'
+        )
+
+    commit = rollback = execute
+
+
+class _BrokenConn:
+    def execute(self, *a, **k):
+        raise ValueError("no such table: nope")
+
+
+def test_query_reconnects_after_stale_stream(temp_db):
+    database.execute("INSERT INTO users (id) VALUES (?)", ("u1",))
+    database._conn = _StaleConn()
+    assert database.query("SELECT id FROM users") == [("u1",)]
+    assert not isinstance(database._conn, _StaleConn)  # fresh connection cached
+
+
+def test_execute_reconnects_after_stale_stream(temp_db):
+    database._conn = _StaleConn()
+    database.execute("INSERT INTO users (id) VALUES (?)", ("u2",))
+    assert database.query("SELECT id FROM users") == [("u2",)]
+
+
+def test_execute_batch_reconnects_after_stale_stream(temp_db):
+    database._conn = _StaleConn()
+    database.execute_batch([
+        ("INSERT INTO users (id) VALUES (?)", ("u3",)),
+        ("INSERT INTO users (id) VALUES (?)", ("u4",)),
+    ])
+    assert database.query("SELECT id FROM users ORDER BY id") == [("u3",), ("u4",)]
+
+
+def test_non_stale_errors_propagate_without_reconnect(temp_db):
+    broken = _BrokenConn()
+    database._conn = broken
+    with pytest.raises(ValueError, match="no such table"):
+        database.query("SELECT 1")
+    assert database._conn is broken
+
+
 # --- disabled mode ------------------------------------------------------------
 
 def test_service_noops_when_disabled():

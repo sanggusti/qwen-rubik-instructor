@@ -21,6 +21,7 @@ logger = logging.getLogger("db")
 MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 _conn: Optional[Any] = None
+_url: Optional[str] = None
 _lock = threading.Lock()
 
 
@@ -28,31 +29,38 @@ def enabled() -> bool:
     return _conn is not None
 
 
+def _connect(url: str) -> Any:
+    import libsql
+
+    if url.startswith(("libsql://", "https://", "wss://")):
+        return libsql.connect(url, auth_token=settings.turso_auth_token)
+    Path(url).parent.mkdir(parents=True, exist_ok=True)
+    return libsql.connect(url)
+
+
 def init(url: Optional[str] = None) -> bool:
     """Connect and migrate. Empty/None url (after settings fallback) disables
     persistence. Returns True when the DB is ready; never raises."""
-    global _conn
+    global _conn, _url
     resolved = settings.turso_database_url if url is None else url
     with _lock:
         _conn = None
+        _url = None
         if not resolved:
             return False
         try:
-            import libsql
+            import libsql  # noqa: F401
         except Exception:  # missing wheel on this platform -> run stateless
             logger.warning("libsql unavailable; persistence disabled")
             return False
         try:
-            if resolved.startswith(("libsql://", "https://", "wss://")):
-                conn = libsql.connect(resolved, auth_token=settings.turso_auth_token)
-            else:
-                Path(resolved).parent.mkdir(parents=True, exist_ok=True)
-                conn = libsql.connect(resolved)
+            conn = _connect(resolved)
             _migrate(conn)
         except Exception:
             logger.exception("database init failed; persistence disabled")
             return False
         _conn = conn
+        _url = resolved
         logger.info("persistence enabled (%s)", resolved)
         return True
 
@@ -74,37 +82,75 @@ def _migrate(conn: Any) -> None:
         conn.commit()
 
 
+def _is_stale(exc: Exception) -> bool:
+    # libsql wraps Hrana protocol errors ("stream not found" after Turso
+    # expires an idle stream) in ValueError with a "Hrana:" prefix.
+    return isinstance(exc, ValueError) and "hrana" in str(exc).lower()
+
+
+def _run(fn: Any) -> Any:
+    """Run fn(conn), reconnecting once if the remote stream went stale.
+
+    Caller must hold _lock. Safe for writes: a dead stream never committed, so
+    replaying the statement(s) on a fresh connection cannot double-apply.
+    """
+    global _conn
+    assert _conn is not None
+    try:
+        return fn(_conn)
+    except Exception as exc:
+        if not _is_stale(exc):
+            raise
+        assert _url is not None
+        logger.warning("stale libsql connection; reconnecting: %s", exc)
+        _conn = _connect(_url)
+        return fn(_conn)
+
+
 def execute(sql: str, params: tuple = ()) -> None:
     """Run a write statement and commit."""
+
+    def op(conn: Any) -> None:
+        conn.execute(sql, params)
+        conn.commit()
+
     with _lock:
-        assert _conn is not None
-        _conn.execute(sql, params)
-        _conn.commit()
+        _run(op)
 
 
 def execute_batch(statements: list[tuple[str, tuple]]) -> None:
     """Run several write statements atomically (one commit, rollback on error)."""
-    with _lock:
-        assert _conn is not None
+
+    def op(conn: Any) -> None:
         try:
             for sql, params in statements:
-                _conn.execute(sql, params)
-            _conn.commit()
+                conn.execute(sql, params)
+            conn.commit()
         except Exception:
-            _conn.rollback()
+            # rollback itself fails on a dead stream; the original error must
+            # survive so _run can classify it.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             raise
+
+    with _lock:
+        _run(op)
 
 
 def query(sql: str, params: tuple = ()) -> list[tuple]:
     with _lock:
-        assert _conn is not None
-        return _conn.execute(sql, params).fetchall()
+        return _run(lambda conn: conn.execute(sql, params).fetchall())
 
 
 def query_write(sql: str, params: tuple = ()) -> list[tuple]:
     """Run a DML statement that returns rows (e.g. UPDATE … RETURNING) and commit."""
-    with _lock:
-        assert _conn is not None
-        result = _conn.execute(sql, params).fetchall()
-        _conn.commit()
+
+    def op(conn: Any) -> list[tuple]:
+        result = conn.execute(sql, params).fetchall()
+        conn.commit()
         return result
+
+    with _lock:
+        return _run(op)
